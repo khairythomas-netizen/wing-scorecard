@@ -1,12 +1,12 @@
 {
-  "name": "Wing Scorecard",
-  "short_name": "Wings",
-  "description": "Fast, personal chicken wing scoring.",
+  "name": "WingZ",
+  "short_name": "WingZ",
+  "description": "Discover, rate, rank, and share chicken wings.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0a0c0f",
-  "theme_color": "#ff6a33",
+  "background_color": "#090b0e",
+  "theme_color": "#ff642f",
   "orientation": "portrait-primary",
   "icons": [
     {
