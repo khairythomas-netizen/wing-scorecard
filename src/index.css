@@ -1,0 +1,154 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Dark is the default and is genuinely black-charcoal, not washed grey.
+  Light is warm and clean rather than clinical blue-white.
+*/
+:root {
+  --bg: #08090b;
+  --surface: #101318;
+  --surface2: #171b21;
+  --line: #232830;
+  --text: #f6f7f9;
+  --muted: #8b95a2;
+  --orange: #ff642f;
+  --gold: #ffad3d;
+  --green: #37c66b;
+  --blue: #4aa8ff;
+  --danger: #ff5570;
+  --violet: #8b5cf6;
+  --glass: rgb(10 12 15 / 0.82);
+  --shadow: 0 18px 55px rgb(0 0 0 / 0.5);
+  --map: #12161a;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --bg: #f7f6f4;
+  --surface: #ffffff;
+  --surface2: #f1efec;
+  --line: #e4e0da;
+  --text: #16181c;
+  --muted: #6f7681;
+  --orange: #ea5722;
+  --gold: #e89422;
+  --green: #22a055;
+  --blue: #2b87e0;
+  --danger: #d64560;
+  --violet: #7c4ddb;
+  --glass: rgb(247 246 244 / 0.85);
+  --shadow: 0 16px 44px rgb(28 37 46 / 0.1);
+  --map: #e9e5df;
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+/* Theme changes should feel like a dissolve, not a flash. */
+body,
+body * {
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body,
+  body * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+@layer components {
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Shared slider treatment for every 0-max metric. */
+  .metric-range {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--surface2);
+    outline: none;
+  }
+  .metric-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--text);
+    border: 3px solid var(--surface);
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.35);
+    cursor: pointer;
+  }
+  .metric-range::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--text);
+    border: 3px solid var(--surface);
+    cursor: pointer;
+  }
+
+  /* Cook is the one slider that reads as a gradient of doneness:
+     raw -> perfect -> burnt, with 0 at both ends. */
+  .cook-range {
+    background: linear-gradient(
+      90deg,
+      #c9342f 0%,
+      #e8842c 25%,
+      #37c66b 50%,
+      #e8842c 75%,
+      #c9342f 100%
+    );
+    height: 10px;
+  }
+  .cook-range::-webkit-slider-thumb {
+    width: 26px;
+    height: 26px;
+    border-width: 4px;
+  }
+
+  .hide-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+}
+
+@keyframes wingz-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-rise {
+  animation: wingz-rise 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
