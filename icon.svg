@@ -1,12 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="g" x1="80" y1="70" x2="430" y2="430" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#ff642f"/>
-      <stop offset="1" stop-color="#ffad3d"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="112" fill="#090b0e"/>
-  <path fill="url(#g)" d="M82 118h254l-62 61H177l79 47-54 54-109-62 88 98h138l-61 61H163L62 270l69-69-49-38z"/>
-  <path fill="url(#g)" d="M315 118h116L292 256h112v68H281l142-145H315z"/>
-  <path d="M117 143c34 7 66 20 96 39-40-4-76-1-109 11 20-18 24-31 13-50z" fill="#fff" fill-opacity=".9"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><image width="512" height="512" href="wingz-logo.jpg" preserveAspectRatio="xMidYMid meet"/></svg>
