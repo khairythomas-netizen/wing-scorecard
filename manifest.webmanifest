@@ -1,19 +1,19 @@
 {
   "name": "WingZ",
   "short_name": "WingZ",
-  "description": "Discover, rate, rank, and share chicken wings.",
+  "description": "Rate, rank and discover chicken wings.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#090b0e",
+  "background_color": "#ffffff",
   "theme_color": "#ff642f",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "wingz-logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
     }
   ]
 }
