@@ -24,7 +24,7 @@ export function MetricSlider({
         <div>
           <span className="text-sm font-extrabold">{label}</span>
           {hint && (
-            <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-muted">
+            <span className="ml-1.5 text-[10.5px] font-medium text-muted opacity-80">
               {hint}
             </span>
           )}

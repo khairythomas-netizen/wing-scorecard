@@ -14,10 +14,12 @@ export function ProfileScreen({
   userId,
   theme,
   onOpenProfile,
+  onOpenPost,
 }: {
   userId: string;
   theme: Theme;
   onOpenProfile?: (id: string) => void;
+  onOpenPost?: (reviewId: string) => void;
 }) {
   const store = useStore();
   const [tab, setTab] = useState<Tab>('posts');
@@ -136,13 +138,22 @@ export function ProfileScreen({
       ) : tab === 'posts' ? (
         <div className="grid grid-cols-3 gap-0.5">
           {reviews.map((r) => (
-            <img
+            <button
               key={r.id}
-              src={r.photos[0]?.url}
-              alt=""
-              loading="lazy"
-              className="aspect-square w-full bg-surface2 object-cover"
-            />
+              onClick={() => onOpenPost?.(r.id)}
+              aria-label={`Open review scoring ${r.finalScore.toFixed(1)}`}
+              className="relative aspect-square w-full overflow-hidden bg-surface2 active:opacity-80"
+            >
+              <img
+                src={r.photos[0]?.url}
+                alt=""
+                loading="lazy"
+                className="h-full w-full object-cover"
+              />
+              <span className="absolute bottom-1 right-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-black text-white backdrop-blur-sm">
+                {r.finalScore.toFixed(1)}
+              </span>
+            </button>
           ))}
           {reviews.length === 0 && (
             <div className="col-span-3">

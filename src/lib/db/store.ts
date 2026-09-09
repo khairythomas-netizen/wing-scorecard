@@ -30,7 +30,7 @@ export interface DraftReview {
   place: Place;
   flavourName: string;
   orderText: string;
-  priceCents: number;
+  priceCents: number | null;
   currency: string;
   heat: 1 | 2 | 3 | 4 | 5;
   scores: Review['scores'];
@@ -94,6 +94,8 @@ export interface WingzStore {
 
   getProfile(id: ID): Promise<Profile | null>;
   listSuggestedProfiles(): Promise<Profile[]>;
+  /** Username search for finding people to follow. */
+  searchProfiles(query: string): Promise<Profile[]>;
 
   followState(targetId: ID): Promise<FollowState>;
   /** Follow, unfollow, request, or withdraw a request, depending on state. */
@@ -110,6 +112,8 @@ export interface WingzStore {
 
   createReview(draft: DraftReview): Promise<Review>;
   reviewsByAuthor(id: ID): Promise<Review[]>;
+  /** One post with everything needed to render it, or null if not visible. */
+  feedItem(reviewId: ID): Promise<FeedItem | null>;
 
   /** Posts from people the current user follows, newest first. */
   feed(): Promise<FeedItem[]>;

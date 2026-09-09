@@ -34,14 +34,15 @@ export interface MapSurfaceProps {
  * data and Discover does not change when the provider does.
  */
 export interface MapProvider {
-  readonly name: 'mock' | 'mapbox';
+  readonly name: 'osm' | 'mapbox';
   readonly Surface: ComponentType<MapSurfaceProps>;
 }
 
 /* ------------------------------------------------- Web Mercator projection */
 /* Shared so the mock positions pins exactly where a real tile map would.     */
 
-const TILE = 256;
+export const TILE_SIZE = 256;
+const TILE = TILE_SIZE;
 
 export function project(lat: number, lng: number, zoom: number): { x: number; y: number } {
   const scale = TILE * 2 ** zoom;

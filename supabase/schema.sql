@@ -88,7 +88,8 @@ create table if not exists reviews (
   place_id     uuid not null references places on delete restrict,
   flavour_id   uuid not null references wing_flavours on delete restrict,
   order_text   text not null,
-  price_cents  integer not null check (price_cents >= 0),
+  -- Nullable: people often do not remember what they paid.
+  price_cents  integer check (price_cents >= 0),
   currency     text not null default 'CAD',
   -- Descriptive metadata only. Never contributes to the score.
   heat         smallint not null check (heat between 1 and 5),

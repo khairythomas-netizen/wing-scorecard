@@ -300,3 +300,94 @@ describe('follow requests for private accounts', () => {
     expect(await store.incomingFollowRequests()).toHaveLength(1);
   });
 });
+
+describe('optional price', () => {
+  it('publishes with no price at all', async () => {
+    const r = await store.createReview(draft({ priceCents: null }));
+    expect(r.priceCents).toBeNull();
+    // The score is unaffected — price is metadata, not a scored component.
+    expect(r.finalScore).toBe(10);
+  });
+
+  it('still stores a price when one is given', async () => {
+    const r = await store.createReview(draft({ priceCents: 1899 }));
+    expect(r.priceCents).toBe(1899);
+  });
+
+  it('survives a round trip through the feed', async () => {
+    const r = await store.createReview(draft({ priceCents: null }));
+    const item = (await store.feed()).find((f) => f.review.id === r.id);
+    expect(item!.review.priceCents).toBeNull();
+  });
+});
+
+describe('single post lookup', () => {
+  it('returns a post with everything needed to render it', async () => {
+    const created = await store.createReview(draft());
+    const item = await store.feedItem(created.id);
+    expect(item).not.toBeNull();
+    expect(item!.author.id).toBe(CURRENT_USER_ID);
+    expect(item!.place.displayName).toBe('Sauce Lab');
+    expect(item!.flavour.name).toBe('Mango Habanero');
+  });
+
+  it('returns null for a review that does not exist', async () => {
+    expect(await store.feedItem('nope')).toBeNull();
+  });
+
+  it('hides a private account’s post from a non-follower', async () => {
+    const priv = (await store.listSuggestedProfiles()).find((p) => p.isPrivate)!;
+    const theirs = await store.reviewsByAuthor(priv.id);
+    for (const r of theirs) {
+      expect(await store.feedItem(r.id)).toBeNull();
+    }
+  });
+});
+
+describe('finding people to follow', () => {
+  it('matches on username and display name', async () => {
+    expect((await store.searchProfiles('maya')).map((p) => p.username)).toContain('mayaeats');
+    expect((await store.searchProfiles('Okonkwo')).map((p) => p.username)).toContain('mayaeats');
+  });
+
+  it('is case-insensitive', async () => {
+    expect(await store.searchProfiles('MAYA')).toHaveLength(1);
+  });
+
+  it('never returns yourself, so you cannot follow yourself', async () => {
+    const all = await store.searchProfiles('');
+    expect(all).toHaveLength(0);
+    for (const q of ['you', 'u_me', 'a', 'e']) {
+      const hits = await store.searchProfiles(q);
+      expect(hits.some((p) => p.id === CURRENT_USER_ID)).toBe(false);
+    }
+  });
+
+  it('suggests only people you do not already follow', async () => {
+    const suggested = await store.listSuggestedProfiles();
+    const followingIds = (await store.followingProfiles()).map((p) => p.id);
+    expect(suggested.every((p) => !followingIds.includes(p.id))).toBe(true);
+    expect(suggested.every((p) => p.id !== CURRENT_USER_ID)).toBe(true);
+  });
+
+  it('following twice does not create a duplicate', async () => {
+    await store.toggleFollow('u_maya'); // seeded as followed -> unfollow
+    expect(await store.toggleFollow('u_maya')).toBe('following');
+    const before = (await store.getProfile('u_maya'))!.followerCount;
+    // followState already reports 'following', so the UI shows Following;
+    // calling again is an unfollow, never a second row.
+    await store.toggleFollow('u_maya');
+    await store.toggleFollow('u_maya');
+    expect((await store.getProfile('u_maya'))!.followerCount).toBe(before);
+  });
+
+  it('puts a followed person’s posts into the feed', async () => {
+    await store.toggleFollow('u_maya'); // unfollow first
+    let feed = await store.feed();
+    expect(feed.some((f) => f.review.authorId === 'u_maya')).toBe(false);
+
+    await store.toggleFollow('u_maya');
+    feed = await store.feed();
+    expect(feed.some((f) => f.review.authorId === 'u_maya')).toBe(true);
+  });
+});

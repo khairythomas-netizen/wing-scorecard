@@ -6,7 +6,7 @@ import type { Place } from '../types';
  * in `index.ts` and nothing in Rate / Discover / Rankings has to move.
  */
 export interface PlacesProvider {
-  readonly name: 'mock' | 'google';
+  readonly name: 'mock' | 'osm' | 'google';
 
   /**
    * Type-ahead search. `near` biases results toward the user when available.

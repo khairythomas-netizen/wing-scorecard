@@ -119,7 +119,9 @@ export function PostCard({ item, onOpenProfile }: { item: FeedItem; onOpenProfil
 
         <p className="mt-2 text-[14px] font-extrabold leading-tight">{review.orderText}</p>
         <p className="mt-0.5 text-[12px] text-muted">
-          {flavour.name} · {formatPrice(review.priceCents, review.currency)} · {place.displayName}
+          {[flavour.name, formatPrice(review.priceCents, review.currency), place.displayName]
+            .filter(Boolean)
+            .join(' · ')}
         </p>
 
         {review.caption && (

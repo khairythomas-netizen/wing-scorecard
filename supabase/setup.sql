@@ -107,7 +107,8 @@ create table if not exists reviews (
   place_id     uuid not null references places on delete restrict,
   flavour_id   uuid not null references wing_flavours on delete restrict,
   order_text   text not null,
-  price_cents  integer not null check (price_cents >= 0),
+  -- Nullable: people often do not remember what they paid.
+  price_cents  integer check (price_cents >= 0),
   currency     text not null default 'CAD',
   -- Descriptive metadata only. Never contributes to the score.
   heat         smallint not null check (heat between 1 and 5),
@@ -700,3 +701,10 @@ grant execute on function reject_follow_request(uuid) to authenticated;
 drop policy if exists freq_delete on follow_requests;
 create policy freq_delete on follow_requests for delete
   using (requester_id = auth.uid() or target_id = auth.uid());
+
+
+-- ------------------------------------------------- price becomes optional
+
+-- People often cannot remember what they paid, and forcing a number would
+-- mean inventing one. Existing rows keep their prices; new ones may omit it.
+alter table reviews alter column price_cents drop not null;

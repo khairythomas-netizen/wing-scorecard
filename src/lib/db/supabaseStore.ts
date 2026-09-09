@@ -37,7 +37,7 @@ export interface ReviewRow {
   place_id: string;
   flavour_id: string;
   order_text: string;
-  price_cents: number;
+  price_cents: number | null;
   currency: string;
   heat: number;
   caption: string;
@@ -96,7 +96,7 @@ export function toReview(row: ReviewRow): Review {
     placeId: row.place_id,
     flavourId: row.flavour_id,
     orderText: row.order_text,
-    priceCents: row.price_cents,
+    priceCents: row.price_cents ?? null,
     currency: row.currency,
     heat: row.heat as Review['heat'],
     scores: {
@@ -278,6 +278,23 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
         .limit(30);
       return (data ?? [])
         .filter((p) => (p as { id: string }).id !== uid && !following.has((p as { id: string }).id))
+        .map((p) => toProfile(p as never));
+    },
+
+    async searchProfiles(query) {
+      const q = query.trim();
+      if (!q) return [];
+      const uid = me();
+      const escaped = q.replace(/[%_,()]/g, '');
+      if (!escaped) return [];
+      const { data } = await client
+        .from('profiles')
+        .select('id, username, display_name, bio, avatar_url, is_private')
+        .not('username', 'is', null)
+        .or(`username.ilike.%${escaped}%,display_name.ilike.%${escaped}%`)
+        .limit(20);
+      return (data ?? [])
+        .filter((p) => (p as { id: string }).id !== uid)
         .map((p) => toProfile(p as never));
     },
 
@@ -487,6 +504,13 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
         .eq('author_id', id)
         .order('created_at', { ascending: false });
       return (data ?? []).map((r) => toReview(r as never));
+    },
+
+    async feedItem(reviewId) {
+      // RLS decides visibility, so an unreadable post simply returns no row.
+      const { data } = await client.from('reviews').select(REVIEW_SELECT).eq('id', reviewId).limit(1);
+      const items = await hydrateAll((data ?? []) as never);
+      return items[0] ?? null;
     },
 
     async feed() {

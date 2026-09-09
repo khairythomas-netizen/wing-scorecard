@@ -128,7 +128,9 @@ export function SwipeMode() {
                         {item.place.displayName}
                       </h3>
                       <p className="mt-1 truncate text-[13px] font-semibold text-white/85">
-                        {item.flavour.name} · {formatPrice(item.review.priceCents, item.review.currency)}
+                        {[item.flavour.name, formatPrice(item.review.priceCents, item.review.currency)]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </p>
                       <p className="truncate text-[12px] text-white/70">{item.review.orderText}</p>
                       <p className="mt-0.5 truncate text-[12px] text-white/70">

@@ -306,6 +306,19 @@ export function createLocalStore(): WingzStore {
         .map(withCounts);
     },
 
+    async searchProfiles(query) {
+      const q = query.trim().toLowerCase();
+      if (!q) return [];
+      return db.profiles
+        .filter(
+          (p) =>
+            p.id !== me() &&
+            (p.username.toLowerCase().includes(q) || p.displayName.toLowerCase().includes(q)),
+        )
+        .map(withCounts)
+        .slice(0, 20);
+    },
+
     async followState(targetId) {
       if (db.follows.some((f) => f.followerId === me() && f.followeeId === targetId)) {
         return 'following';
@@ -456,6 +469,14 @@ export function createLocalStore(): WingzStore {
 
     async reviewsByAuthor(id) {
       return db.reviews.filter((r) => r.authorId === id).sort(byNewest);
+    },
+
+    async feedItem(reviewId) {
+      const review = db.reviews.find((r) => r.id === reviewId);
+      if (!review) return null;
+      // Respect the same privacy rule the lists use.
+      if (!visibleReviews().some((r) => r.id === reviewId)) return null;
+      return hydrate(review);
     },
 
     async feed() {

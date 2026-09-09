@@ -14,7 +14,7 @@ export interface Place {
   id: ID;
   /** The provider's own identifier, e.g. a Google Places place_id. */
   externalId: string;
-  provider: 'mock' | 'google' | 'mapbox';
+  provider: 'mock' | 'osm' | 'google' | 'mapbox';
   /** What the user sees, e.g. "Bird Bar". */
   displayName: string;
   /** Lowercased, punctuation-stripped, for dedupe and matching. */
@@ -92,8 +92,8 @@ export interface Review {
   flavourId: ID;
   /** Free text: "20-wing combo", "boneless combo + fries". */
   orderText: string;
-  /** Structured, in cents, so value maths and currency stay honest. */
-  priceCents: number;
+  /** Structured, in cents. Null when the reviewer did not record a price. */
+  priceCents: number | null;
   currency: string;
   /** Whole 1-5 peppers. Descriptive only — never affects the score. */
   heat: 1 | 2 | 3 | 4 | 5;

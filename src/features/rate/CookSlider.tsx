@@ -36,8 +36,8 @@ export function CookSlider({
       <div className="flex items-baseline justify-between">
         <div>
           <span className="text-sm font-extrabold">Cook</span>
-          <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-muted">
-            doneness · crisp · juice
+          <span className="ml-1.5 text-[10.5px] font-medium text-muted opacity-80">
+            doneness, crisp and juiciness
           </span>
         </div>
         <span className="text-sm font-black tabular-nums">

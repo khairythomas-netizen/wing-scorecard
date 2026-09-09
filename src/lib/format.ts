@@ -1,5 +1,10 @@
-/** Prices are stored in cents; never format from a float. */
-export function formatPrice(cents: number, currency = 'CAD'): string {
+/**
+ * Prices are stored in cents; never format from a float.
+ * Returns null when no price was recorded, so callers must decide what to
+ * show rather than rendering "$0" or "NaN" for a missing value.
+ */
+export function formatPrice(cents: number | null | undefined, currency = 'CAD'): string | null {
+  if (cents == null) return null;
   return new Intl.NumberFormat(undefined, {
     style: 'currency',
     currency,

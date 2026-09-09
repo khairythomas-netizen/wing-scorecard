@@ -131,7 +131,7 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
   if (!d.place) missing.push('a restaurant');
   if (!d.orderText.trim()) missing.push('what you ordered');
   if (!d.flavourName.trim()) missing.push('a sauce or flavour');
-  if (priceCents == null) missing.push('a price');
+
   if (d.heat == null) missing.push('a heat rating');
   const valid = missing.length === 0;
 
@@ -142,7 +142,7 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
 
   const publish = async () => {
     setTouched(true);
-    if (!valid || !d.place || d.heat == null || priceCents == null) {
+    if (!valid || !d.place || d.heat == null) {
       toast(`Still need ${missing[0]}`);
       return;
     }
@@ -209,7 +209,7 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
               ))}
             </datalist>
           </Field>
-          <Field label="Price" required>
+          <Field label="Price" hint="optional">
             <TextInput
               value={d.priceText}
               onChange={(v) => set('priceText', v)}
@@ -240,7 +240,7 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
         <MetricSlider label="Sauce consistency" value={d.sauce} max={1} onChange={(v) => set('sauce', v)} />
         <MetricSlider label="Value" hint="for the money" value={d.value} max={1} onChange={(v) => set('value', v)} />
         <MetricSlider label="Size & meatiness" value={d.size} max={0.5} onChange={(v) => set('size', v)} />
-        <MetricSlider label="Eye test" value={d.eye} max={0.5} onChange={(v) => set('eye', v)} />
+        <MetricSlider label="Eye test" hint="how good it looks" value={d.eye} max={0.5} onChange={(v) => set('eye', v)} />
         <MetricSlider label="Sides & dips" value={d.sides} max={0.5} onChange={(v) => set('sides', v)} />
         <MetricSlider label="Flats : drums" value={d.ratio} max={0.2} onChange={(v) => set('ratio', v)} />
         <MetricSlider label="Drink" value={d.drink} max={0.3} onChange={(v) => set('drink', v)} rounded="bottom" />
@@ -313,16 +313,19 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
 function Field({
   label,
   required,
+  hint,
   children,
 }: {
   label: string;
   required?: boolean;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
     <label className="block">
       <span className="mb-1.5 ml-1 block text-[11px] font-bold text-muted">
         {label} {required && <span className="text-orange">*</span>}
+        {hint && <span className="ml-1 font-semibold normal-case opacity-70">({hint})</span>}
       </span>
       {children}
     </label>

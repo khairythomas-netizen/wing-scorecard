@@ -7,6 +7,8 @@ import { AuthScreen } from './features/auth/AuthScreen';
 import { UsernameScreen } from './features/auth/UsernameScreen';
 import { DiscoverScreen } from './features/discover/DiscoverScreen';
 import { FeedScreen } from './features/feed/FeedScreen';
+import { PeopleSearch } from './features/feed/PeopleSearch';
+import { PostDetail } from './features/feed/PostDetail';
 import { ProfileScreen } from './features/profile/ProfileScreen';
 import { RankingsScreen } from './features/rankings/RankingsScreen';
 import { RateScreen } from './features/rate/RateScreen';
@@ -62,6 +64,9 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
   const [tab, setTab] = useState<TabId>('rate');
   const [profileId, setProfileId] = useState<string>(user?.id ?? '');
   const [updateReady, setUpdateReady] = useState(false);
+  const [peopleOpen, setPeopleOpen] = useState(false);
+  // Which post is open, and which tab to return to when it closes.
+  const [openPost, setOpenPost] = useState<{ id: string; from: TabId } | null>(null);
 
   useEffect(() => onUpdateAvailable(setUpdateReady), []);
   useEffect(() => {
@@ -70,6 +75,7 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
 
   const go = useCallback(
     (next: TabId) => {
+      setOpenPost(null);
       setTab(next);
       if (next === 'profile' && user?.id) setProfileId(user.id);
       window.scrollTo({ top: 0 });
@@ -78,6 +84,7 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
   );
 
   const openProfile = useCallback((id: string) => {
+    setOpenPost(null);
     setProfileId(id);
     setTab('profile');
     window.scrollTo({ top: 0 });
@@ -126,17 +133,45 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
       </header>
 
       <main>
-        {tab === 'feed' && <FeedScreen onOpenProfile={openProfile} />}
+        {openPost ? (
+          <PostDetail
+            reviewId={openPost.id}
+            onBack={() => {
+              setOpenPost(null);
+              window.scrollTo({ top: 0 });
+            }}
+            onOpenProfile={openProfile}
+          />
+        ) : (
+          <>
+        {tab === 'feed' && <FeedScreen onOpenProfile={openProfile} onFindPeople={() => setPeopleOpen(true)} />}
         {tab === 'discover' && <DiscoverScreen theme={theme} />}
         {tab === 'rate' && <RateScreen onPublished={() => go('feed')} />}
         {tab === 'rankings' && <RankingsScreen />}
         {tab === 'profile' && profileId && (
-          <ProfileScreen key={profileId} userId={profileId} theme={theme} onOpenProfile={openProfile} />
+          <ProfileScreen
+            key={profileId}
+            userId={profileId}
+            theme={theme}
+            onOpenProfile={openProfile}
+            onOpenPost={(id) => {
+              setOpenPost({ id, from: 'profile' });
+              window.scrollTo({ top: 0 });
+            }}
+          />
         )}
         {tab === 'profile' && !profileId && !profile && (
           <Spinner label="Loading profile" />
         )}
+          </>
+        )}
       </main>
+
+      <PeopleSearch
+        open={peopleOpen}
+        onClose={() => setPeopleOpen(false)}
+        onOpenProfile={openProfile}
+      />
 
       <BottomNav active={tab} onChange={go} />
     </div>

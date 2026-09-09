@@ -279,3 +279,10 @@ grant execute on function reject_follow_request(uuid) to authenticated;
 drop policy if exists freq_delete on follow_requests;
 create policy freq_delete on follow_requests for delete
   using (requester_id = auth.uid() or target_id = auth.uid());
+
+
+-- ------------------------------------------------- price becomes optional
+
+-- People often cannot remember what they paid, and forcing a number would
+-- mean inventing one. Existing rows keep their prices; new ones may omit it.
+alter table reviews alter column price_cents drop not null;

@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
-import { project, unproject, type MapSurfaceProps } from './provider';
+import { project, unproject, TILE_SIZE, type MapSurfaceProps } from './provider';
 
 const OWNER_CLASS: Record<string, string> = {
   mine: 'bg-orange text-white',
@@ -9,14 +9,15 @@ const OWNER_CLASS: Record<string, string> = {
 };
 
 /**
- * Development map surface.
+ * Slippy map over OpenStreetMap raster tiles.
  *
- * Deliberately not a decorative picture: markers are positioned by projecting
- * their real lat/lng through Web Mercator, and dragging re-centres the true
- * viewport. Swapping in Mapbox replaces the backdrop and the pan handler while
- * the marker data and callbacks stay identical.
+ * Real cartography with no API key or token, which is why it is the default.
+ * Tiles are plain <img> elements positioned by the same Web Mercator
+ * projection the markers use, so pins land exactly on the streets they belong
+ * to. Swapping in Mapbox replaces the backdrop while marker data and callbacks
+ * stay identical.
  */
-export function MockMapSurface({
+export function OsmMapSurface({
   viewport,
   markers,
   theme,
@@ -46,15 +47,16 @@ export function MockMapSurface({
     return () => ro.disconnect();
   }, []);
 
-  const centerPx = project(viewport.center.lat, viewport.center.lng, viewport.zoom);
+  const tileZoom = Math.round(viewport.zoom);
+  const centerPx = project(viewport.center.lat, viewport.center.lng, tileZoom);
 
   /** Screen position of a coordinate, relative to the container. */
   const toScreen = useCallback(
     (lat: number, lng: number) => {
-      const p = project(lat, lng, viewport.zoom);
+      const p = project(lat, lng, tileZoom);
       return { x: p.x - centerPx.x + size.w / 2, y: p.y - centerPx.y + size.h / 2 };
     },
-    [centerPx.x, centerPx.y, size.w, size.h, viewport.zoom],
+    [centerPx.x, centerPx.y, size.w, size.h, tileZoom],
   );
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -66,10 +68,10 @@ export function MockMapSurface({
   const onPointerMove = (e: React.PointerEvent) => {
     const d = drag.current;
     if (!d) return;
-    const origin = project(d.center.lat, d.center.lng, viewport.zoom);
+    const origin = project(d.center.lat, d.center.lng, tileZoom);
     onViewportChange({
       ...viewport,
-      center: unproject(origin.x - (e.clientX - d.x), origin.y - (e.clientY - d.y), viewport.zoom),
+      center: unproject(origin.x - (e.clientX - d.x), origin.y - (e.clientY - d.y), tileZoom),
     });
   };
 
@@ -80,7 +82,36 @@ export function MockMapSurface({
   const zoomBy = (delta: number) =>
     onViewportChange({ ...viewport, zoom: Math.min(18, Math.max(2, viewport.zoom + delta)) });
 
-  const grid = theme === 'dark' ? 'rgba(255,255,255,.045)' : 'rgba(20,26,33,.06)';
+  // Which tiles cover the viewport at this centre and zoom.
+  const zoom = Math.round(viewport.zoom);
+  const tiles: { key: string; url: string; left: number; top: number }[] = [];
+  if (size.w > 0 && size.h > 0) {
+    // Re-project at the integer zoom the tiles exist for, so a fractional
+    // zoom never smears the grid.
+    const c = project(viewport.center.lat, viewport.center.lng, zoom);
+    const originX = c.x - size.w / 2;
+    const originY = c.y - size.h / 2;
+    const first = { x: Math.floor(originX / TILE_SIZE), y: Math.floor(originY / TILE_SIZE) };
+    const last = {
+      x: Math.floor((originX + size.w) / TILE_SIZE),
+      y: Math.floor((originY + size.h) / TILE_SIZE),
+    };
+    const span = 2 ** zoom;
+    for (let x = first.x; x <= last.x; x++) {
+      for (let y = first.y; y <= last.y; y++) {
+        // Wrap horizontally so panning past the date line keeps rendering;
+        // vertically there is nothing beyond the poles.
+        if (y < 0 || y >= span) continue;
+        const wrappedX = ((x % span) + span) % span;
+        tiles.push({
+          key: `${zoom}/${x}/${y}`,
+          url: `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${y}.png`,
+          left: x * TILE_SIZE - originX,
+          top: y * TILE_SIZE - originY,
+        });
+      }
+    }
+  }
 
   return (
     <div
@@ -92,16 +123,31 @@ export function MockMapSurface({
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
     >
-      {/* Stand-in for tiles: a graticule that scrolls with the viewport, so
-          panning reads as real movement rather than a static illustration. */}
+      {/* Tile layer. Dark mode dims and inverts the lightness so the map sits
+          in a charcoal UI without a bright white slab. */}
       <div
         className="absolute inset-0"
-        style={{
-          backgroundImage: `linear-gradient(${grid} 1px, transparent 1px), linear-gradient(90deg, ${grid} 1px, transparent 1px)`,
-          backgroundSize: '64px 64px',
-          backgroundPosition: `${-centerPx.x % 64}px ${-centerPx.y % 64}px`,
-        }}
-      />
+        style={
+          theme === 'dark'
+            ? { filter: 'invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.95)' }
+            : undefined
+        }
+      >
+        {tiles.map((t) => (
+          <img
+            key={t.key}
+            src={t.url}
+            alt=""
+            draggable={false}
+            // Every tile rendered here already covers the viewport, so lazy
+            // loading only delays the map without saving a request.
+            loading="eager"
+            decoding="async"
+            className="pointer-events-none absolute select-none"
+            style={{ left: t.left, top: t.top, width: TILE_SIZE, height: TILE_SIZE }}
+          />
+        ))}
+      </div>
 
       {markers.map((m) => {
         const { x, y } = toScreen(m.lat, m.lng);
@@ -141,8 +187,16 @@ export function MockMapSurface({
         </button>
       </div>
 
-      <div className="pointer-events-none absolute bottom-2 left-3 z-30 text-[9px] font-semibold uppercase tracking-wider text-muted">
-        Mock map · real coordinates
+      {/* OpenStreetMap's licence requires visible attribution. */}
+      <div className="absolute bottom-1 right-1 z-30 rounded bg-[var(--glass)] px-1.5 py-0.5 text-[9px] text-muted">
+        <a
+          href="https://www.openstreetmap.org/copyright"
+          target="_blank"
+          rel="noreferrer noopener"
+          className="underline decoration-dotted"
+        >
+          © OpenStreetMap
+        </a>
       </div>
     </div>
   );
