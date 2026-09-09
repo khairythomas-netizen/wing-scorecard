@@ -27,10 +27,32 @@ jobs:
       - run: npm test
       - run: npm run build
         env:
+          # Backend. With these unset the app ships in demo mode against the
+          # seeded local store, and Vite tree-shakes the Supabase client out.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           # Both provider keys are optional. Without them the app runs on the
-          # mock places/map adapters, which is the current deployed behaviour.
+          # mock places/map adapters.
           VITE_GOOGLE_PLACES_KEY: ${{ secrets.VITE_GOOGLE_PLACES_KEY }}
           VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
+
+      # A missing env var here is invisible: the build still succeeds and
+      # silently ships demo mode. Fail loudly instead.
+      - name: Verify the backend was compiled in
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ]; then
+            echo "No VITE_SUPABASE_URL secret — deploying in demo mode."
+            exit 0
+          fi
+          host=$(printf '%s' "$VITE_SUPABASE_URL" | sed -E 's#^https?://##; s#/.*##')
+          if grep -rqF "$host" dist/assets/*.js; then
+            echo "Supabase backend compiled into the bundle."
+          else
+            echo "::error::VITE_SUPABASE_URL is set but absent from the bundle — the build would ship in demo mode."
+            exit 1
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
