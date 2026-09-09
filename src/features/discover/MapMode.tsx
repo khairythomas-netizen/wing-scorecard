@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Chip, ChipRow } from '../../components/Chip';
 import { HeatMeter } from '../../components/HeatMeter';
 import { ScoreBadge } from '../../components/ScoreBadge';
@@ -43,8 +43,17 @@ export function MapMode({ theme }: { theme: Theme }) {
     center: { lat: 43.6597, lng: -79.4056 },
     zoom: 12,
   });
+  // Only reframe automatically before the user takes control of the map.
+  const userMoved = useRef(false);
+  const framed = useRef(false);
 
   const heat = HEAT_BANDS[band]!;
+
+  // A filter change is a new question; re-answer it with a fitting view.
+  useEffect(() => {
+    framed.current = false;
+    userMoved.current = false;
+  }, [owner, band, minScore]);
 
   const pinQuery = useQuery([owner, heat.min, heat.max, minScore], (s) =>
     s.discoverMarkers({
@@ -56,6 +65,26 @@ export function MapMode({ theme }: { theme: Theme }) {
     }),
   );
   const pins = pinQuery.data ?? [];
+
+  // A hardcoded starting city hides everything for anyone reviewing elsewhere,
+  // so frame the map around whatever pins actually exist on first load.
+  useEffect(() => {
+    if (userMoved.current || framed.current || pins.length === 0) return;
+    framed.current = true;
+
+    const lats = pins.map((p) => p.place.lat);
+    const lngs = pins.map((p) => p.place.lng);
+    const north = Math.max(...lats);
+    const south = Math.min(...lats);
+    const east = Math.max(...lngs);
+    const west = Math.min(...lngs);
+
+    // Widest span decides the zoom; 360 degrees is one world at zoom 0.
+    const span = Math.max(north - south, (east - west) / 2, 0.01);
+    const zoom = Math.min(15, Math.max(2, Math.floor(Math.log2(360 / span)) - 1));
+
+    setViewport({ center: { lat: (north + south) / 2, lng: (east + west) / 2 }, zoom });
+  }, [pins]);
 
   const markers: MapMarker[] = useMemo(
     () =>
@@ -103,7 +132,10 @@ export function MapMode({ theme }: { theme: Theme }) {
           markers={markers}
           theme={theme}
           onMarkerClick={setSelected}
-          onViewportChange={setViewport}
+          onViewportChange={(v) => {
+            userMoved.current = true;
+            setViewport(v);
+          }}
           className="h-[58vh] min-h-[400px]"
         />
 

@@ -161,6 +161,36 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
   }
 
   /**
+   * Counts for a list of profiles, in two queries rather than three per row.
+   * Doing it per profile would be 60 requests for a 20-result search, which is
+   * why the search and suggestion lists previously shipped without any counts
+   * at all and showed everyone as having 0 reviews.
+   */
+  async function attachCounts(profiles: Profile[]): Promise<Profile[]> {
+    if (!profiles.length) return profiles;
+    const ids = profiles.map((p) => p.id);
+
+    const [reviews, followers] = await Promise.all([
+      client.from('reviews').select('author_id').in('author_id', ids),
+      client.from('follows').select('followee_id').in('followee_id', ids),
+    ]);
+
+    const tally = <T extends string>(rows: Record<T, string>[] | null, key: T) => {
+      const m = new Map<string, number>();
+      (rows ?? []).forEach((r) => m.set(r[key], (m.get(r[key]) ?? 0) + 1));
+      return m;
+    };
+    const reviewCounts = tally(reviews.data as { author_id: string }[] | null, 'author_id');
+    const followerCounts = tally(followers.data as { followee_id: string }[] | null, 'followee_id');
+
+    return profiles.map((p) => ({
+      ...p,
+      reviewCount: reviewCounts.get(p.id) ?? 0,
+      followerCount: followerCounts.get(p.id) ?? 0,
+    }));
+  }
+
+  /**
    * Counts are derived rather than denormalised, so they cannot drift.
    * PostgREST head-count queries return only a number, not the rows.
    */
@@ -276,9 +306,11 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
         .select('id, username, display_name, bio, avatar_url, is_private')
         .not('username', 'is', null)
         .limit(30);
-      return (data ?? [])
-        .filter((p) => (p as { id: string }).id !== uid && !following.has((p as { id: string }).id))
-        .map((p) => toProfile(p as never));
+      return attachCounts(
+        (data ?? [])
+          .filter((p) => (p as { id: string }).id !== uid && !following.has((p as { id: string }).id))
+          .map((p) => toProfile(p as never)),
+      );
     },
 
     async searchProfiles(query) {
@@ -293,9 +325,9 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
         .not('username', 'is', null)
         .or(`username.ilike.%${escaped}%,display_name.ilike.%${escaped}%`)
         .limit(20);
-      return (data ?? [])
-        .filter((p) => (p as { id: string }).id !== uid)
-        .map((p) => toProfile(p as never));
+      return attachCounts(
+        (data ?? []).filter((p) => (p as { id: string }).id !== uid).map((p) => toProfile(p as never)),
+      );
     },
 
     async followState(targetId) {

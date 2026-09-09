@@ -127,8 +127,13 @@ function PersonRow({
       >
         <span className="block truncate text-[13px] font-extrabold">{profile.username}</span>
         <span className="block truncate text-[11px] text-muted">
-          {profile.displayName || `${profile.reviewCount} reviews`}
-          {profile.isPrivate && ' · 🔒'}
+          {[
+            profile.displayName,
+            `${profile.reviewCount} ${profile.reviewCount === 1 ? 'review' : 'reviews'}`,
+            profile.isPrivate ? '🔒' : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </span>
       </button>
       <button
