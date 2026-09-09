@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Sheet } from '../../components/Sheet';
-import { useStore } from '../../hooks/useStore';
+import { useQuery, useStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
 import { parsePriceToCents } from '../../lib/format';
 import {
@@ -73,6 +73,8 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
   const [d, setD] = useState<Draft>(emptyDraft);
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [touched, setTouched] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const flavours = useQuery([], (s) => s.getFlavours());
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setD((prev) => ({ ...prev, [key]: value }));
@@ -110,29 +112,37 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
   if (d.heat == null) missing.push('a heat rating');
   const valid = missing.length === 0;
 
-  const publish = () => {
+  const publish = async () => {
     setTouched(true);
     if (!valid || !d.place || d.heat == null || priceCents == null) {
       toast(`Still need ${missing[0]}`);
       return;
     }
-    store.createReview({
-      placeId: store.upsertPlace(d.place).id,
-      flavourName: d.flavourName,
-      orderText: d.orderText.trim(),
-      priceCents,
-      currency: 'CAD',
-      heat: d.heat,
-      scores: { ...result.components, cookPosition: d.cookPosition },
-      bonuses: d.bonuses.filter((b) => b.amount > 0),
-      caption: d.caption.trim(),
-      photos: d.photos.map((p) => ({ url: p.url, kind: p.kind })),
-      visibility: 'public',
-    });
-    setD(emptyDraft());
-    setTouched(false);
-    toast('Published to your feed');
-    onPublished();
+    setPublishing(true);
+    try {
+      await store.createReview({
+        place: d.place,
+        flavourName: d.flavourName,
+        orderText: d.orderText.trim(),
+        priceCents,
+        currency: 'CAD',
+        heat: d.heat,
+        scores: { ...result.components, cookPosition: d.cookPosition },
+        bonuses: d.bonuses.filter((b) => b.amount > 0),
+        caption: d.caption.trim(),
+        photos: d.photos.map((p) => ({ url: p.url, file: p.file, kind: p.kind })),
+        visibility: 'public',
+      });
+      setD(emptyDraft());
+      setTouched(false);
+      toast('Published to your feed');
+      onPublished();
+    } catch (err) {
+      // Uploads and inserts both fail here; keep the draft so nothing is lost.
+      toast(err instanceof Error ? err.message : 'Could not publish');
+    } finally {
+      setPublishing(false);
+    }
   };
 
   return (
@@ -166,7 +176,7 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
               list="wingz-flavours"
             />
             <datalist id="wingz-flavours">
-              {store.listFlavours().map((f) => (
+              {(flavours.data ?? []).map((f) => (
                 <option key={f.id} value={f.name} />
               ))}
             </datalist>
@@ -247,12 +257,13 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
         </button>
         <button
           type="button"
-          onClick={publish}
+          onClick={() => void publish()}
+          disabled={publishing}
           className={`rounded-xl px-5 py-3 text-sm font-black text-white transition-opacity ${
             valid ? 'bg-gradient-to-br from-orange to-gold shadow-glow' : 'bg-muted opacity-60'
-          }`}
+          } disabled:opacity-60`}
         >
-          Publish
+          {publishing ? 'Publishing…' : 'Publish'}
         </button>
       </div>
 

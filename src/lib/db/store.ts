@@ -11,8 +11,16 @@ import type {
   WingFlavour,
 } from '../types';
 
+/** A photo on its way into a review. `file` is absent for already-hosted URLs. */
+export interface DraftPhoto {
+  url: string;
+  file?: File | null;
+  kind: Review['photos'][number]['kind'];
+}
+
 export interface DraftReview {
-  placeId: ID;
+  /** The resolved place. Stores persist it if they have not seen it before. */
+  place: Place;
   flavourName: string;
   orderText: string;
   priceCents: number;
@@ -21,7 +29,7 @@ export interface DraftReview {
   scores: Review['scores'];
   bonuses: Review['bonuses'];
   caption: string;
-  photos: { url: string; kind: Review['photos'][number]['kind'] }[];
+  photos: DraftPhoto[];
   visibility: Review['visibility'];
 }
 
@@ -34,6 +42,8 @@ export interface RankingFilters {
   city?: string | null;
   /** Which component to rank on. 'final' is the default overall ranking. */
   sortBy?: 'final' | 'cook' | 'flavour' | 'value' | 'sauce';
+  /** Restrict to one author, for a profile's ranked list. */
+  authorId?: ID | null;
 }
 
 export interface DiscoverFilters {
@@ -44,62 +54,67 @@ export interface DiscoverFilters {
   flavourId: ID | null;
 }
 
+export interface DiscoverMarker {
+  place: Place;
+  owner: 'mine' | 'friends' | 'community' | 'wantToTry';
+  label: string;
+}
+
+export interface PlaceDetail {
+  place: Place;
+  myReview: Review | null;
+  friendAverage: number | null;
+  community: Aggregate | null;
+  topFlavour: WingFlavour | null;
+  photoUrl: string | null;
+  wantToTry: boolean;
+}
+
 /**
- * Everything the UI needs from persistence. The local implementation backs
- * development; the Supabase implementation drops in behind the same interface
- * once auth is switched on.
+ * Everything the UI needs from persistence.
+ *
+ * Async throughout, because the Supabase implementation is: keeping the
+ * interface honest here means the local implementation and the hosted one are
+ * genuinely interchangeable, rather than the screens quietly depending on
+ * synchronous reads that only ever worked in memory.
  */
 export interface WingzStore {
-  currentUserId(): ID;
+  readonly name: 'local' | 'supabase';
 
-  getProfile(id: ID): Profile | undefined;
-  listProfiles(): Profile[];
-  updateProfile(id: ID, patch: Partial<Profile>): void;
+  /** The signed-in user, or null. Synchronous because render paths need it. */
+  currentUserId(): ID | null;
+  setCurrentUserId(id: ID | null): void;
 
-  followState(targetId: ID): FollowState;
-  toggleFollow(targetId: ID): FollowState;
-  /** Ids the current user follows (approved only). */
-  followingIds(): ID[];
+  getProfile(id: ID): Promise<Profile | null>;
+  listSuggestedProfiles(): Promise<Profile[]>;
 
-  getPlace(id: ID): Place | undefined;
-  upsertPlace(place: Place): Place;
-  listPlaces(): Place[];
+  followState(targetId: ID): Promise<FollowState>;
+  toggleFollow(targetId: ID): Promise<FollowState>;
+  followingProfiles(): Promise<Profile[]>;
 
-  getFlavour(id: ID): WingFlavour | undefined;
-  listFlavours(): WingFlavour[];
-  /** Find by name or create — flavours are shared vocabulary across users. */
-  resolveFlavour(name: string): WingFlavour;
+  getFlavours(): Promise<WingFlavour[]>;
+  listCities(): Promise<string[]>;
 
-  createReview(draft: DraftReview): Review;
-  getReview(id: ID): Review | undefined;
-  listReviews(): Review[];
-  reviewsByAuthor(id: ID): Review[];
-  reviewsForPlace(id: ID): Review[];
+  createReview(draft: DraftReview): Promise<Review>;
+  reviewsByAuthor(id: ID): Promise<Review[]>;
 
   /** Posts from people the current user follows, newest first. */
-  feed(): FeedItem[];
-  /** Public posts from everyone, for Discover surfaces. */
-  publicPosts(): FeedItem[];
-  hydrate(review: Review): FeedItem;
+  feed(): Promise<FeedItem[]>;
+  /** Public posts from other people, for swipe discovery. */
+  publicPosts(): Promise<FeedItem[]>;
 
-  toggleLike(reviewId: ID): boolean;
-  toggleSave(reviewId: ID): boolean;
-  listComments(reviewId: ID): (Comment & { author: Profile })[];
-  addComment(reviewId: ID, body: string): void;
+  toggleLike(reviewId: ID): Promise<boolean>;
+  toggleSave(reviewId: ID): Promise<boolean>;
+  listComments(reviewId: ID): Promise<(Comment & { author: Profile })[]>;
+  addComment(reviewId: ID, body: string): Promise<void>;
 
-  toggleWantToTry(placeId: ID, flavourId: ID | null, sourceReviewId: ID | null): boolean;
-  isWantToTry(placeId: ID): boolean;
-  listWantToTry(): (WantToTryEntry & { place: Place; flavour: WingFlavour | null })[];
+  toggleWantToTry(placeId: ID, flavourId: ID | null, sourceReviewId: ID | null): Promise<boolean>;
+  listWantToTry(): Promise<(WantToTryEntry & { place: Place; flavour: WingFlavour | null })[]>;
 
-  rankings(filters: RankingFilters): FeedItem[];
-  discoverMarkers(filters: DiscoverFilters): {
-    place: Place;
-    owner: 'mine' | 'friends' | 'community' | 'wantToTry';
-    label: string;
-  }[];
+  rankings(filters: RankingFilters): Promise<FeedItem[]>;
+  discoverMarkers(filters: DiscoverFilters): Promise<DiscoverMarker[]>;
+  placeDetail(placeId: ID): Promise<PlaceDetail | null>;
 
-  /** Community rollups. `flavourId` null aggregates the whole restaurant. */
-  aggregate(placeId: ID, flavourId?: ID | null): Aggregate | null;
-
+  /** Fires after any write, so open queries can refetch. */
   subscribe(listener: () => void): () => void;
 }

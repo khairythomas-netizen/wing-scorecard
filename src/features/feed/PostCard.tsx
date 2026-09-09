@@ -5,7 +5,7 @@ import { BookmarkIcon, CommentIcon, HeartIcon } from '../../components/Icons';
 import { ReviewBreakdown } from '../../components/ReviewBreakdown';
 import { ScoreBadge } from '../../components/ScoreBadge';
 import { Sheet } from '../../components/Sheet';
-import { useStore } from '../../hooks/useStore';
+import { useQuery, useStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
 import { compact, formatPrice, timeAgo } from '../../lib/format';
 import type { FeedItem } from '../../lib/types';
@@ -23,6 +23,9 @@ export function PostCard({ item, onOpenProfile }: { item: FeedItem; onOpenProfil
   const [breakdown, setBreakdown] = useState(false);
   const [comments, setComments] = useState(false);
   const [draft, setDraft] = useState('');
+  const commentList = useQuery([review.id, comments], async (s) =>
+    comments ? s.listComments(review.id) : [],
+  );
 
   const photos = review.photos;
 
@@ -79,7 +82,7 @@ export function PostCard({ item, onOpenProfile }: { item: FeedItem; onOpenProfil
 
       <div className="flex items-center gap-4 px-3 pb-1 pt-2">
         <button
-          onClick={() => store.toggleLike(review.id)}
+          onClick={() => void store.toggleLike(review.id)}
           aria-label={item.likedByMe ? 'Unlike' : 'Like'}
           className={item.likedByMe ? 'text-danger' : ''}
         >
@@ -89,8 +92,8 @@ export function PostCard({ item, onOpenProfile }: { item: FeedItem; onOpenProfil
           <CommentIcon />
         </button>
         <button
-          onClick={() => {
-            const on = store.toggleWantToTry(place.id, flavour.id, review.id);
+          onClick={async () => {
+            const on = await store.toggleWantToTry(place.id, flavour.id, review.id);
             toast(on ? 'Added to Want to Try' : 'Removed from Want to Try');
           }}
           className={`ml-auto text-[11px] font-extrabold ${item.wantToTry ? 'text-violet' : 'text-muted'}`}
@@ -98,7 +101,7 @@ export function PostCard({ item, onOpenProfile }: { item: FeedItem; onOpenProfil
           {item.wantToTry ? '♥ Want to Try' : '+ Want to Try'}
         </button>
         <button
-          onClick={() => store.toggleSave(review.id)}
+          onClick={() => void store.toggleSave(review.id)}
           aria-label={item.savedByMe ? 'Unsave' : 'Save'}
           className={item.savedByMe ? 'text-text' : ''}
         >
@@ -141,7 +144,7 @@ export function PostCard({ item, onOpenProfile }: { item: FeedItem; onOpenProfil
 
       <Sheet open={comments} onClose={() => setComments(false)} title="Comments">
         <div className="space-y-3">
-          {store.listComments(review.id).map((c) => (
+          {(commentList.data ?? []).map((c) => (
             <div key={c.id} className="flex gap-2.5">
               <Avatar src={c.author.avatarUrl} alt="" size={30} />
               <p className="text-[13px] leading-relaxed">
@@ -149,7 +152,7 @@ export function PostCard({ item, onOpenProfile }: { item: FeedItem; onOpenProfil
               </p>
             </div>
           ))}
-          {store.listComments(review.id).length === 0 && (
+          {commentList.data?.length === 0 && (
             <p className="text-[13px] text-muted">No comments yet.</p>
           )}
         </div>
@@ -157,7 +160,7 @@ export function PostCard({ item, onOpenProfile }: { item: FeedItem; onOpenProfil
           className="mt-4 flex gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            store.addComment(review.id, draft);
+            void store.addComment(review.id, draft);
             setDraft('');
           }}
         >

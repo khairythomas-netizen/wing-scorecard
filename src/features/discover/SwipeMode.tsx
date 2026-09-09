@@ -1,10 +1,11 @@
 import { useMemo, useRef, useState } from 'react';
 import { HeatMeter } from '../../components/HeatMeter';
 import { CloseIcon, HeartIcon } from '../../components/Icons';
-import { useStore, useStoreSnapshot } from '../../hooks/useStore';
+import { useQuery, useStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
 import { formatPrice } from '../../lib/format';
 import { formatScore } from '../../lib/scoring';
+import { Spinner } from '../../components/States';
 import type { FeedItem } from '../../lib/types';
 
 /**
@@ -15,7 +16,8 @@ import type { FeedItem } from '../../lib/types';
 export function SwipeMode() {
   const store = useStore();
   const toast = useToast();
-  const pool = useStoreSnapshot((s) => s.publicPosts());
+  const poolQuery = useQuery([], (s) => s.publicPosts());
+  const pool = useMemo(() => poolQuery.data ?? [], [poolQuery.data]);
   const [cursor, setCursor] = useState(0);
   const [drag, setDrag] = useState(0);
   const [exiting, setExiting] = useState<'left' | 'right' | null>(null);
@@ -26,8 +28,9 @@ export function SwipeMode() {
 
   const commit = (dir: 'left' | 'right', item: FeedItem) => {
     if (dir === 'right') {
-      const already = store.isWantToTry(item.place.id);
-      if (!already) store.toggleWantToTry(item.place.id, item.flavour.id, item.review.id);
+      if (!item.wantToTry) {
+        void store.toggleWantToTry(item.place.id, item.flavour.id, item.review.id);
+      }
       toast(`${item.flavour.name} at ${item.place.displayName} → Want to Try`);
     }
     setExiting(dir);
@@ -37,6 +40,8 @@ export function SwipeMode() {
       setExiting(null);
     }, 220);
   };
+
+  if (poolQuery.data === undefined) return <Spinner label="Finding wings" />;
 
   if (!top) {
     return (

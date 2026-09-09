@@ -82,14 +82,28 @@ with seeded real coordinates:
 Going live is a change in `src/lib/places/index.ts` / `src/lib/map/index.ts`
 only. No screen imports a vendor. See `.env.example`.
 
-### Data
+### Data and auth
 
-`WingzStore` is the whole persistence surface. Today it is backed by
-`localStore.ts` (seeded, `localStorage`-persisted) so the app runs with no
-backend. `supabase/schema.sql` holds the production schema: every sub-score is
-its own column on `review_scores`, bonuses are rows with a database-level cap
-trigger, and materialised views roll heat and scores up by restaurant,
-restaurant + flavour, and city.
+`WingzStore` is the whole persistence surface, and it is async throughout so
+the local and hosted implementations are genuinely interchangeable.
+
+| | No credentials | With Supabase |
+|---|---|---|
+| Data | seeded `localStore`, persisted to `localStorage` | Postgres behind row-level security |
+| Auth | demo user, no sign-in wall | email + password, then a claimed `@username` |
+| Photos | object URLs, local to the browser | `wing-photos` storage bucket |
+
+Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to switch. With them
+unset, Vite tree-shakes the Supabase client out of the bundle entirely, so the
+demo build pays nothing for it.
+
+**See [`supabase/SETUP.md`](supabase/SETUP.md)** for the full setup.
+
+Schema notes: every sub-score is its own column on `review_scores`; bonuses are
+rows with a database-level trigger enforcing the +0.5 cap and 5-row limit;
+`publish_review()` writes a review and all its children in one transaction; and
+`can_view_review()` enforces private accounts in the database rather than the
+UI, so a crafted API request cannot read around it.
 
 ## PWA
 

@@ -3,7 +3,8 @@ import { Chip, ChipRow } from '../../components/Chip';
 import { HeatMeter } from '../../components/HeatMeter';
 import { ReviewBreakdown } from '../../components/ReviewBreakdown';
 import { Sheet } from '../../components/Sheet';
-import { useStoreSnapshot } from '../../hooks/useStore';
+import { useQuery } from '../../hooks/useStore';
+import { EmptyState, ErrorState, Spinner } from '../../components/States';
 import { formatScore } from '../../lib/scoring';
 import type { RankingFilters } from '../../lib/db/store';
 import type { FeedItem } from '../../lib/types';
@@ -39,18 +40,20 @@ export function RankingsScreen({ userId, title }: { userId?: string; title?: str
 
   const heat = HEAT_BANDS[band]!;
 
-  const rows = useStoreSnapshot((s) => {
-    const all = s.rankings({
+  const rowQuery = useQuery([userId, scope, heat.min, heat.max, city, sortBy], (s) =>
+    s.rankings({
       scope: userId ? 'global' : scope,
+      authorId: userId ?? null,
       minHeat: heat.min,
       maxHeat: heat.max,
       city,
       sortBy,
-    });
-    return userId ? all.filter((r) => r.review.authorId === userId) : all;
-  });
+    }),
+  );
+  const rows = rowQuery.data;
 
-  const cities = useStoreSnapshot((s) => [...new Set(s.listPlaces().map((p) => p.city))].sort());
+  const cityQuery = useQuery([], (s) => s.listCities());
+  const cities = cityQuery.data ?? [];
 
   return (
     <div className="pb-4">
@@ -96,10 +99,15 @@ export function RankingsScreen({ userId, title }: { userId?: string; title?: str
         ))}
       </ChipRow>
 
-      {rows.length === 0 ? (
-        <p className="px-6 py-16 text-center text-sm text-muted">
-          No wings match these filters yet.
-        </p>
+      {rowQuery.error ? (
+        <ErrorState error={rowQuery.error} onRetry={rowQuery.refetch} />
+      ) : rows === undefined ? (
+        <Spinner label="Ranking wings" />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          title="No wings match these filters"
+          detail="Try widening the heat range or clearing the city filter."
+        />
       ) : (
         rows.map((item, i) => (
           <button

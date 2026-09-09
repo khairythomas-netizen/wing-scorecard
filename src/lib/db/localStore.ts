@@ -55,7 +55,13 @@ interface SeedSpec {
   caption: string;
   days: number;
   bonuses?: [string, number][];
-  tweak?: Partial<Record<'flavour' | 'sauce' | 'value' | 'size' | 'eye' | 'sides' | 'ratio' | 'drink' | 'sauceOptions' | 'atmosphere', number>>;
+  tweak?: Partial<
+    Record<
+      | 'flavour' | 'sauce' | 'value' | 'size' | 'eye' | 'sides'
+      | 'ratio' | 'drink' | 'sauceOptions' | 'atmosphere',
+      number
+    >
+  >;
   towelette?: boolean;
   napkins?: boolean;
 }
@@ -78,11 +84,11 @@ const SEED_REVIEWS: SeedSpec[] = [
 function buildSeedReview(spec: SeedSpec, flavours: WingFlavour[]): Review {
   const t = spec.tweak ?? {};
   const bonuses: BonusEntry[] = (spec.bonuses ?? []).map(([reason, amount], i) => ({
-    id: `b_seed_${spec.place}_${i}`,
+    id: `b_seed_${spec.place}_${spec.author}_${i}`,
     reason,
     amount,
   }));
-  const input = {
+  const result = calculateScore({
     cookPosition: spec.cookPosition,
     flavour: t.flavour ?? 1.5,
     sauce: t.sauce ?? 0.7,
@@ -97,8 +103,7 @@ function buildSeedReview(spec: SeedSpec, flavours: WingFlavour[]): Review {
     sauceOptions: t.sauceOptions ?? 0.1,
     atmosphere: t.atmosphere ?? 0.2,
     bonuses,
-  };
-  const result = calculateScore(input);
+  });
   const flavour = flavours.find((f) => f.normalizedName === normalizeName(spec.flavour))!;
 
   return {
@@ -117,18 +122,8 @@ function buildSeedReview(spec: SeedSpec, flavours: WingFlavour[]): Review {
     finalScore: result.final,
     caption: spec.caption,
     photos: [
-      {
-        id: `ph_${spec.place}_${spec.author}`,
-        url: SEED_PHOTOS[spec.photo % SEED_PHOTOS.length]!,
-        position: 0,
-        kind: 'wing',
-      },
-      {
-        id: `ph2_${spec.place}_${spec.author}`,
-        url: SEED_PHOTOS[(spec.photo + 3) % SEED_PHOTOS.length]!,
-        position: 1,
-        kind: 'wing',
-      },
+      { id: `ph_${spec.place}_${spec.author}`, url: SEED_PHOTOS[spec.photo % SEED_PHOTOS.length]!, position: 0, kind: 'wing' },
+      { id: `ph2_${spec.place}_${spec.author}`, url: SEED_PHOTOS[(spec.photo + 3) % SEED_PHOTOS.length]!, position: 1, kind: 'wing' },
     ],
     visibility: 'public',
     createdAt: daysAgo(spec.days),
@@ -145,7 +140,6 @@ function seedDb(): DbShape {
     followeeId: id,
     createdAt: daysAgo(40),
   }));
-  // A few inbound follows so the profile counts are not all zero.
   follows.push(
     ...['u_maya', 'u_deshawn', 'u_priya', 'u_tom'].map((id) => ({
       followerId: id,
@@ -167,23 +161,22 @@ function seedDb(): DbShape {
     likes: [{ userId: CURRENT_USER_ID, reviewId: reviews[1]!.id }],
     saves: [],
     wantToTry: [
-      {
-        id: 'w1',
-        userId: CURRENT_USER_ID,
-        placeId: 'mock:p_brooklynbones',
-        flavourId: 'f_buffalo',
-        sourceReviewId: null,
-        createdAt: daysAgo(3),
-      },
+      { id: 'w1', userId: CURRENT_USER_ID, placeId: 'mock:p_brooklynbones', flavourId: 'f_buffalo', sourceReviewId: null, createdAt: daysAgo(3) },
     ],
   };
 }
 
 /* ------------------------------------------------------------------- store */
 
+/**
+ * Development store: seeded, persisted to localStorage, and async only so it
+ * satisfies the same interface the Supabase store does. Everything resolves
+ * immediately — there is no artificial latency to hide behind.
+ */
 export function createLocalStore(): WingzStore {
   let db: DbShape = load();
   const listeners = new Set<() => void>();
+  let currentUser: ID | null = CURRENT_USER_ID;
 
   function load(): DbShape {
     try {
@@ -204,18 +197,23 @@ export function createLocalStore(): WingzStore {
     listeners.forEach((l) => l());
   }
 
-  const me = () => CURRENT_USER_ID;
+  const me = () => currentUser ?? CURRENT_USER_ID;
   const profileOf = (id: ID) => db.profiles.find((p) => p.id === id);
   const placeOf = (id: ID) => db.places.find((p) => p.id === id);
   const flavourOf = (id: ID) => db.flavours.find((f) => f.id === id);
+  const followingIds = () => db.follows.filter((f) => f.followerId === me()).map((f) => f.followeeId);
 
-  const followingIds = () =>
-    db.follows.filter((f) => f.followerId === me()).map((f) => f.followeeId);
+  const withCounts = (p: Profile): Profile => ({
+    ...p,
+    followerCount: db.follows.filter((f) => f.followeeId === p.id).length,
+    followingCount: db.follows.filter((f) => f.followerId === p.id).length,
+    reviewCount: db.reviews.filter((r) => r.authorId === p.id).length,
+  });
 
   function hydrate(review: Review): FeedItem {
     return {
       review,
-      author: profileOf(review.authorId)!,
+      author: withCounts(profileOf(review.authorId)!),
       place: placeOf(review.placeId)!,
       flavour: flavourOf(review.flavourId)!,
       likedByMe: db.likes.some((l) => l.userId === me() && l.reviewId === review.id),
@@ -226,7 +224,7 @@ export function createLocalStore(): WingzStore {
 
   const byNewest = (a: Review, b: Review) => b.createdAt.localeCompare(a.createdAt);
 
-  /** Reviews the current user is allowed to see, respecting private accounts. */
+  /** Reviews the current user may see, respecting private accounts. */
   function visibleReviews(): Review[] {
     const following = new Set(followingIds());
     return db.reviews.filter((r) => {
@@ -261,34 +259,42 @@ export function createLocalStore(): WingzStore {
     };
   }
 
+  function resolveFlavour(name: string): WingFlavour {
+    const n = normalizeName(name);
+    const found = db.flavours.find((f) => f.normalizedName === n);
+    if (found) return found;
+    const created: WingFlavour = { id: uid('f'), name: name.trim(), normalizedName: n };
+    db.flavours.push(created);
+    return created;
+  }
+
   return {
-    currentUserId: me,
-
-    getProfile(id) {
-      const p = profileOf(id);
-      if (!p) return undefined;
-      // Counts are derived, never hand-maintained.
-      return {
-        ...p,
-        followerCount: db.follows.filter((f) => f.followeeId === id).length,
-        followingCount: db.follows.filter((f) => f.followerId === id).length,
-        reviewCount: db.reviews.filter((r) => r.authorId === id).length,
-      };
-    },
-    listProfiles: () => db.profiles.map((p) => ({ ...p })),
-    updateProfile(id, patch) {
-      const p = profileOf(id);
-      if (!p) return;
-      Object.assign(p, patch);
-      commit();
+    name: 'local',
+    currentUserId: () => currentUser,
+    setCurrentUserId(id) {
+      currentUser = id;
+      listeners.forEach((l) => l());
     },
 
-    followState(targetId) {
-      if (db.follows.some((f) => f.followerId === me() && f.followeeId === targetId))
-        return 'following';
-      return 'none';
+    async getProfile(id) {
+      const p = profileOf(id);
+      return p ? withCounts(p) : null;
     },
-    toggleFollow(targetId) {
+
+    async listSuggestedProfiles() {
+      const following = new Set(followingIds());
+      return db.profiles
+        .filter((p) => p.id !== me() && !following.has(p.id))
+        .map(withCounts);
+    },
+
+    async followState(targetId) {
+      return db.follows.some((f) => f.followerId === me() && f.followeeId === targetId)
+        ? 'following'
+        : 'none';
+    },
+
+    async toggleFollow(targetId) {
       const i = db.follows.findIndex((f) => f.followerId === me() && f.followeeId === targetId);
       let next: FollowState;
       if (i >= 0) {
@@ -296,37 +302,29 @@ export function createLocalStore(): WingzStore {
         next = 'none';
       } else {
         db.follows.push({ followerId: me(), followeeId: targetId, createdAt: new Date().toISOString() });
-        // A private account would enter 'requested' here once auth is real.
         next = profileOf(targetId)?.isPrivate ? 'requested' : 'following';
       }
       commit();
       return next;
     },
-    followingIds,
 
-    getPlace: placeOf,
-    upsertPlace(place) {
-      const existing = placeOf(place.id);
-      if (existing) return existing;
-      db.places.push(place);
-      commit();
-      return place;
-    },
-    listPlaces: () => db.places,
-
-    getFlavour: flavourOf,
-    listFlavours: () => db.flavours,
-    resolveFlavour(name) {
-      const n = normalizeName(name);
-      const found = db.flavours.find((f) => f.normalizedName === n);
-      if (found) return found;
-      const created: WingFlavour = { id: uid('f'), name: name.trim(), normalizedName: n };
-      db.flavours.push(created);
-      commit();
-      return created;
+    async followingProfiles() {
+      return followingIds()
+        .map((id) => profileOf(id))
+        .filter((p): p is Profile => p != null)
+        .map(withCounts);
     },
 
-    createReview(draft) {
+    async getFlavours() {
+      return [...db.flavours];
+    },
+
+    async listCities() {
+      return [...new Set(db.places.map((p) => p.city))].filter(Boolean).sort();
+    },
+
+    async createReview(draft) {
+      if (!placeOf(draft.place.id)) db.places.push(draft.place);
       const result = calculateScore({
         cookPosition: draft.scores.cookPosition,
         flavour: draft.scores.flavour,
@@ -343,11 +341,11 @@ export function createLocalStore(): WingzStore {
         atmosphere: draft.scores.atmosphere,
         bonuses: draft.bonuses,
       });
-      const flavour = this.resolveFlavour(draft.flavourName);
+      const flavour = resolveFlavour(draft.flavourName);
       const review: Review = {
         id: uid('r'),
         authorId: me(),
-        placeId: draft.placeId,
+        placeId: draft.place.id,
         flavourId: flavour.id,
         orderText: draft.orderText,
         priceCents: draft.priceCents,
@@ -359,12 +357,7 @@ export function createLocalStore(): WingzStore {
         bonusScore: result.bonus,
         finalScore: result.final,
         caption: draft.caption,
-        photos: draft.photos.map((p, i) => ({
-          id: uid('ph'),
-          url: p.url,
-          position: i,
-          kind: p.kind,
-        })),
+        photos: draft.photos.map((p, i) => ({ id: uid('ph'), url: p.url, position: i, kind: p.kind })),
         visibility: draft.visibility,
         createdAt: new Date().toISOString(),
         likeCount: 0,
@@ -375,29 +368,23 @@ export function createLocalStore(): WingzStore {
       return review;
     },
 
-    getReview: (id) => db.reviews.find((r) => r.id === id),
-    listReviews: () => [...db.reviews].sort(byNewest),
-    reviewsByAuthor: (id) => db.reviews.filter((r) => r.authorId === id).sort(byNewest),
-    reviewsForPlace: (id) => db.reviews.filter((r) => r.placeId === id).sort(byNewest),
-
-    feed() {
-      const following = new Set([...followingIds(), me()]);
-      return db.reviews
-        .filter((r) => following.has(r.authorId))
-        .sort(byNewest)
-        .map(hydrate);
+    async reviewsByAuthor(id) {
+      return db.reviews.filter((r) => r.authorId === id).sort(byNewest);
     },
 
-    publicPosts() {
+    async feed() {
+      const following = new Set([...followingIds(), me()]);
+      return db.reviews.filter((r) => following.has(r.authorId)).sort(byNewest).map(hydrate);
+    },
+
+    async publicPosts() {
       return visibleReviews()
         .filter((r) => r.visibility === 'public' && r.authorId !== me())
         .sort(byNewest)
         .map(hydrate);
     },
 
-    hydrate,
-
-    toggleLike(reviewId) {
+    async toggleLike(reviewId) {
       const i = db.likes.findIndex((l) => l.userId === me() && l.reviewId === reviewId);
       const review = db.reviews.find((r) => r.id === reviewId);
       if (!review) return false;
@@ -415,7 +402,7 @@ export function createLocalStore(): WingzStore {
       return liked;
     },
 
-    toggleSave(reviewId) {
+    async toggleSave(reviewId) {
       const i = db.saves.findIndex((s) => s.userId === me() && s.reviewId === reviewId);
       let saved: boolean;
       if (i >= 0) {
@@ -429,14 +416,14 @@ export function createLocalStore(): WingzStore {
       return saved;
     },
 
-    listComments(reviewId) {
+    async listComments(reviewId) {
       return db.comments
         .filter((c) => c.reviewId === reviewId)
-        .map((c) => ({ ...c, author: profileOf(c.authorId)! }))
+        .map((c) => ({ ...c, author: withCounts(profileOf(c.authorId)!) }))
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     },
 
-    addComment(reviewId, body) {
+    async addComment(reviewId, body) {
       const review = db.reviews.find((r) => r.id === reviewId);
       if (!review || !body.trim()) return;
       db.comments.push({
@@ -450,7 +437,7 @@ export function createLocalStore(): WingzStore {
       commit();
     },
 
-    toggleWantToTry(placeId, flavourId, sourceReviewId) {
+    async toggleWantToTry(placeId, flavourId, sourceReviewId) {
       const i = db.wantToTry.findIndex((w) => w.userId === me() && w.placeId === placeId);
       let on: boolean;
       if (i >= 0) {
@@ -471,9 +458,7 @@ export function createLocalStore(): WingzStore {
       return on;
     },
 
-    isWantToTry: (placeId) => db.wantToTry.some((w) => w.userId === me() && w.placeId === placeId),
-
-    listWantToTry() {
+    async listWantToTry() {
       return db.wantToTry
         .filter((w) => w.userId === me())
         .map((w) => ({
@@ -484,32 +469,31 @@ export function createLocalStore(): WingzStore {
         .filter((w) => w.place);
     },
 
-    rankings(filters) {
+    async rankings(filters) {
       const following = new Set(followingIds());
       let rows = visibleReviews();
 
       if (filters.scope === 'mine') rows = rows.filter((r) => r.authorId === me());
       else if (filters.scope === 'friends') rows = rows.filter((r) => following.has(r.authorId));
+      if (filters.authorId) rows = rows.filter((r) => r.authorId === filters.authorId);
 
       if (filters.minHeat != null) rows = rows.filter((r) => r.heat >= filters.minHeat!);
       if (filters.maxHeat != null) rows = rows.filter((r) => r.heat <= filters.maxHeat!);
       if (filters.minScore != null) rows = rows.filter((r) => r.finalScore >= filters.minScore!);
       if (filters.flavourId) rows = rows.filter((r) => r.flavourId === filters.flavourId);
-      if (filters.city) {
-        rows = rows.filter((r) => placeOf(r.placeId)?.city === filters.city);
-      }
+      if (filters.city) rows = rows.filter((r) => placeOf(r.placeId)?.city === filters.city);
 
       const key = filters.sortBy ?? 'final';
       const pick = (r: Review) => (key === 'final' ? r.finalScore : r.scores[key]);
       return rows.sort((a, b) => pick(b) - pick(a) || byNewest(a, b)).map(hydrate);
     },
 
-    discoverMarkers(filters) {
+    async discoverMarkers(filters) {
       const following = new Set(followingIds());
-      const out: { place: Place; owner: 'mine' | 'friends' | 'community' | 'wantToTry'; label: string }[] = [];
+      const out: Awaited<ReturnType<WingzStore['discoverMarkers']>> = [];
 
       if (filters.owner === 'wantToTry') {
-        for (const w of this.listWantToTry()) {
+        for (const w of await this.listWantToTry()) {
           out.push({ place: w.place, owner: 'wantToTry', label: '♥' });
         }
         return out;
@@ -547,7 +531,29 @@ export function createLocalStore(): WingzStore {
       return out;
     },
 
-    aggregate: (placeId, flavourId = null) => computeAggregate(placeId, flavourId),
+    async placeDetail(placeId) {
+      const place = placeOf(placeId);
+      if (!place) return null;
+      const reviews = db.reviews.filter((r) => r.placeId === placeId).sort(byNewest);
+      const following = new Set(followingIds());
+      const friends = reviews.filter((r) => following.has(r.authorId));
+
+      const counts = new Map<ID, number>();
+      reviews.forEach((r) => counts.set(r.flavourId, (counts.get(r.flavourId) ?? 0) + 1));
+      const topFlavourId = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+
+      return {
+        place,
+        myReview: reviews.find((r) => r.authorId === me()) ?? null,
+        friendAverage: friends.length
+          ? round1(friends.reduce((a, r) => a + r.finalScore, 0) / friends.length)
+          : null,
+        community: computeAggregate(placeId, null),
+        topFlavour: topFlavourId ? (flavourOf(topFlavourId) ?? null) : null,
+        photoUrl: reviews[0]?.photos[0]?.url ?? null,
+        wantToTry: db.wantToTry.some((w) => w.userId === me() && w.placeId === placeId),
+      };
+    },
 
     subscribe(listener) {
       listeners.add(listener);

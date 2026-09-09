@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Avatar } from '../../components/Avatar';
-import { useStore, useStoreSnapshot } from '../../hooks/useStore';
+import { useQuery, useStore } from '../../hooks/useStore';
+import { EmptyState, Spinner } from '../../components/States';
 import { mapProvider, type MapViewport } from '../../lib/map';
 import type { Theme } from '../../hooks/useTheme';
 import { compact } from '../../lib/format';
@@ -16,12 +17,24 @@ export function ProfileScreen({ userId, theme }: { userId: string; theme: Theme 
     zoom: 11,
   });
 
-  const profile = useStoreSnapshot((s) => s.getProfile(userId));
-  const reviews = useStoreSnapshot((s) => s.reviewsByAuthor(userId));
-  const followState = useStoreSnapshot((s) => s.followState(userId));
+  const profileQuery = useQuery([userId], (s) => s.getProfile(userId));
+  const reviewQuery = useQuery([userId], (s) => s.reviewsByAuthor(userId));
+  const followQuery = useQuery([userId], (s) => s.followState(userId));
+  const placeQuery = useQuery([userId], async (s) => {
+    // The profile map needs coordinates, which live on the place, not the review.
+    const markers = await s.discoverMarkers({
+      owner: 'everyone', minHeat: 1, maxHeat: 5, minScore: 0, flavourId: null,
+    });
+    return new Map(markers.map((m) => [m.place.id, m.place]));
+  });
+
+  const profile = profileQuery.data;
+  const reviews = reviewQuery.data ?? [];
+  const followState = followQuery.data ?? 'none';
   const isMe = userId === store.currentUserId();
 
-  if (!profile) return <p className="p-8 text-center text-sm text-muted">Profile not found.</p>;
+  if (profileQuery.loading && !profile) return <Spinner label="Loading profile" />;
+  if (!profile) return <EmptyState title="Profile not found" />;
 
   // Private accounts keep their metadata visible; the content behind it is gated.
   const locked = profile.isPrivate && !isMe && followState !== 'following';
@@ -64,7 +77,7 @@ export function ProfileScreen({ userId, theme }: { userId: string; theme: Theme 
             </button>
           ) : (
             <button
-              onClick={() => store.toggleFollow(userId)}
+              onClick={() => void store.toggleFollow(userId)}
               className={`w-full rounded-xl py-2.5 text-xs font-extrabold ${
                 followState === 'following'
                   ? 'border border-line bg-surface text-text'
@@ -115,7 +128,9 @@ export function ProfileScreen({ userId, theme }: { userId: string; theme: Theme 
             />
           ))}
           {reviews.length === 0 && (
-            <p className="col-span-3 py-16 text-center text-sm text-muted">No posts yet.</p>
+            <div className="col-span-3">
+              <EmptyState title="No posts yet" />
+            </div>
           )}
         </div>
       ) : tab === 'rankings' ? (
@@ -124,15 +139,16 @@ export function ProfileScreen({ userId, theme }: { userId: string; theme: Theme 
         <div className="mx-3 mt-3 overflow-hidden rounded-xl3 border border-line">
           <Surface
             viewport={viewport}
-            markers={reviews.map((r) => {
-              const place = store.getPlace(r.placeId)!;
-              return {
+            markers={reviews.flatMap((r) => {
+              const place = placeQuery.data?.get(r.placeId);
+              if (!place) return [];
+              return [{
                 id: r.id,
                 lat: place.lat,
                 lng: place.lng,
                 owner: isMe ? ('mine' as const) : ('friends' as const),
                 label: r.finalScore.toFixed(1),
-              };
+              }];
             })}
             theme={theme}
             onMarkerClick={() => {}}

@@ -2,11 +2,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { BottomNav, type TabId } from './components/BottomNav';
 import { BrandLockup } from './components/Brand';
 import { MoonIcon, RefreshIcon, SunIcon } from './components/Icons';
+import { Spinner } from './components/States';
+import { AuthScreen } from './features/auth/AuthScreen';
+import { UsernameScreen } from './features/auth/UsernameScreen';
 import { DiscoverScreen } from './features/discover/DiscoverScreen';
 import { FeedScreen } from './features/feed/FeedScreen';
 import { ProfileScreen } from './features/profile/ProfileScreen';
 import { RankingsScreen } from './features/rankings/RankingsScreen';
 import { RateScreen } from './features/rate/RateScreen';
+import { AuthProvider, useAuth } from './hooks/useAuth';
 import { StoreContext, store } from './hooks/useStore';
 import { ToastProvider, useToast } from './hooks/useToast';
 import { useTheme } from './hooks/useTheme';
@@ -15,29 +19,63 @@ import { applyUpdate, onUpdateAvailable } from './lib/pwa';
 export function App() {
   return (
     <StoreContext.Provider value={store}>
-      <ToastProvider>
-        <Shell />
-      </ToastProvider>
+      <AuthProvider>
+        <ToastProvider>
+          <Gate />
+        </ToastProvider>
+      </AuthProvider>
     </StoreContext.Provider>
   );
 }
 
-function Shell() {
-  const { theme, toggle } = useTheme();
+/**
+ * Decides between the auth wall, the username step and the app itself.
+ *
+ * With no Supabase project attached, `requiresSignIn` is false and this falls
+ * straight through to the app on the demo user — the deployed build keeps
+ * working without credentials.
+ */
+function Gate() {
+  const { user, profile, loading, client } = useAuth();
+  const { theme } = useTheme();
+
+  if (loading) {
+    return (
+      <div className="grid min-h-screen place-items-center">
+        <Spinner label="Starting WingZ" />
+      </div>
+    );
+  }
+
+  if (client.requiresSignIn && !user) return <AuthScreen />;
+  if (user && profile && !profile.username) return <UsernameScreen />;
+
+  return <Shell theme={theme} />;
+}
+
+function Shell({ theme }: { theme: 'dark' | 'light' }) {
+  const { toggle } = useTheme();
+  const { user, profile, client } = useAuth();
   const toast = useToast();
 
   // Rate is the landing tab for now, by product decision.
   const [tab, setTab] = useState<TabId>('rate');
-  const [profileId, setProfileId] = useState(store.currentUserId());
+  const [profileId, setProfileId] = useState<string>(user?.id ?? '');
   const [updateReady, setUpdateReady] = useState(false);
 
   useEffect(() => onUpdateAvailable(setUpdateReady), []);
+  useEffect(() => {
+    if (user?.id) setProfileId((current) => current || user.id);
+  }, [user?.id]);
 
-  const go = useCallback((next: TabId) => {
-    setTab(next);
-    if (next === 'profile') setProfileId(store.currentUserId());
-    window.scrollTo({ top: 0 });
-  }, []);
+  const go = useCallback(
+    (next: TabId) => {
+      setTab(next);
+      if (next === 'profile' && user?.id) setProfileId(user.id);
+      window.scrollTo({ top: 0 });
+    },
+    [user?.id],
+  );
 
   const openProfile = useCallback((id: string) => {
     setProfileId(id);
@@ -55,6 +93,14 @@ function Shell() {
       <header className="safe-top sticky top-0 z-40 flex items-center justify-between border-b border-line bg-[var(--glass)] px-4 pb-2.5 pt-3 backdrop-blur-xl">
         <BrandLockup />
         <div className="flex items-center gap-2">
+          {client.requiresSignIn && (
+            <button
+              onClick={() => void client.signOut()}
+              className="rounded-full border border-line bg-surface px-3 py-2 text-[11px] font-extrabold text-muted"
+            >
+              Sign out
+            </button>
+          )}
           <button
             onClick={() => void refresh()}
             aria-label="Check for updates"
@@ -84,7 +130,12 @@ function Shell() {
         {tab === 'discover' && <DiscoverScreen theme={theme} />}
         {tab === 'rate' && <RateScreen onPublished={() => go('feed')} />}
         {tab === 'rankings' && <RankingsScreen />}
-        {tab === 'profile' && <ProfileScreen userId={profileId} theme={theme} />}
+        {tab === 'profile' && profileId && (
+          <ProfileScreen key={profileId} userId={profileId} theme={theme} />
+        )}
+        {tab === 'profile' && !profileId && !profile && (
+          <Spinner label="Loading profile" />
+        )}
       </main>
 
       <BottomNav active={tab} onChange={go} />

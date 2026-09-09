@@ -3,7 +3,9 @@ import { CameraIcon, CloseIcon } from '../../components/Icons';
 
 export interface DraftPhoto {
   id: string;
+  /** Object URL, for preview only. The File is what actually gets uploaded. */
   url: string;
+  file: File;
   kind: 'wing' | 'menu' | 'bill' | 'sauce' | 'sides' | 'interior' | 'other';
 }
 
@@ -33,7 +35,7 @@ export function PhotoPicker({
   const toDraft = (file: File, kind: DraftPhoto['kind']): DraftPhoto => {
     const url = URL.createObjectURL(file);
     created.current.add(url);
-    return { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, url, kind };
+    return { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, url, file, kind };
   };
 
   const main = photos[0];
