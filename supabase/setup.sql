@@ -370,8 +370,12 @@ drop policy if exists scores_read on review_scores;
 create policy scores_read on review_scores for select using (
   exists (select 1 from reviews r
            where r.id = review_id and can_view_review(r.author_id, r.visibility)));
+-- FOR ALL, not FOR INSERT. With insert-only, an author could edit their own
+-- caption, bonuses and photos but not their own scores, which silently makes
+-- a review uneditable. Postgres applies this expression as both USING and
+-- WITH CHECK, matching how review_bonuses and review_photos are written.
 drop policy if exists scores_write on review_scores;
-create policy scores_write on review_scores for insert with check (
+create policy scores_write on review_scores for all using (
   exists (select 1 from reviews r where r.id = review_id and r.author_id = auth.uid()));
 
 drop policy if exists bonuses_read on review_bonuses;
