@@ -199,3 +199,24 @@ describe('auth error messages', () => {
     expect(friendlyAuthError('Something specific broke')).toBe('Something specific broke');
   });
 });
+
+describe('schema and types agree', () => {
+  it('the database provider allowlist matches Place["provider"]', async () => {
+    // These two drifted once already: 'osm' was added to the TypeScript union
+    // but not the CHECK constraint, so every review against an OSM restaurant
+    // was rejected by the database while the UI looked fine.
+    const fs = await import('node:fs/promises');
+    const schema = await fs.readFile('supabase/schema.sql', 'utf8');
+    const types = await fs.readFile('src/lib/types.ts', 'utf8');
+
+    const dbList = schema.match(/check \(provider in \(([^)]+)\)\)/)?.[1];
+    expect(dbList).toBeTruthy();
+    const dbProviders = [...dbList!.matchAll(/'([a-z]+)'/g)].map((m) => m[1]).sort();
+
+    const tsList = types.match(/provider: ((?:'[a-z]+'\s*\|?\s*)+);/)?.[1];
+    expect(tsList).toBeTruthy();
+    const tsProviders = [...tsList!.matchAll(/'([a-z]+)'/g)].map((m) => m[1]).sort();
+
+    expect(dbProviders).toEqual(tsProviders);
+  });
+});

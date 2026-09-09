@@ -67,7 +67,8 @@ create table if not exists follow_requests (
 -- A place is provider-owned identity (Google today, anything tomorrow).
 create table if not exists places (
   id                 uuid primary key default gen_random_uuid(),
-  provider           text not null check (provider in ('mock','google','mapbox')),
+  -- Keep in sync with Place['provider'] in src/lib/types.ts; a test asserts it.
+  provider           text not null check (provider in ('mock','osm','google','mapbox')),
   external_id        text not null,
   display_name       text not null,
   normalized_name    text not null,
@@ -708,3 +709,13 @@ create policy freq_delete on follow_requests for delete
 -- People often cannot remember what they paid, and forcing a number would
 -- mean inventing one. Existing rows keep their prices; new ones may omit it.
 alter table reviews alter column price_cents drop not null;
+
+
+-- --------------------------------------------- OpenStreetMap as a provider
+
+-- Places search moved to OpenStreetMap, but the provider allowlist predated
+-- it, so every review against an OSM-sourced restaurant was rejected by this
+-- constraint. Widened rather than dropped: an allowlist still catches typos.
+alter table places drop constraint if exists places_provider_check;
+alter table places add constraint places_provider_check
+  check (provider in ('mock','osm','google','mapbox'));

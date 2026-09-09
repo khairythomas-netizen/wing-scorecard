@@ -286,3 +286,13 @@ create policy freq_delete on follow_requests for delete
 -- People often cannot remember what they paid, and forcing a number would
 -- mean inventing one. Existing rows keep their prices; new ones may omit it.
 alter table reviews alter column price_cents drop not null;
+
+
+-- --------------------------------------------- OpenStreetMap as a provider
+
+-- Places search moved to OpenStreetMap, but the provider allowlist predated
+-- it, so every review against an OSM-sourced restaurant was rejected by this
+-- constraint. Widened rather than dropped: an allowlist still catches typos.
+alter table places drop constraint if exists places_provider_check;
+alter table places add constraint places_provider_check
+  check (provider in ('mock','osm','google','mapbox'));

@@ -48,7 +48,8 @@ create table if not exists follow_requests (
 -- A place is provider-owned identity (Google today, anything tomorrow).
 create table if not exists places (
   id                 uuid primary key default gen_random_uuid(),
-  provider           text not null check (provider in ('mock','google','mapbox')),
+  -- Keep in sync with Place['provider'] in src/lib/types.ts; a test asserts it.
+  provider           text not null check (provider in ('mock','osm','google','mapbox')),
   external_id        text not null,
   display_name       text not null,
   normalized_name    text not null,
