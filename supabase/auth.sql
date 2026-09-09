@@ -177,10 +177,17 @@ begin
   select id into found from wing_flavours where normalized_name = p_normalized;
   if found is not null then return found; end if;
 
+  -- DO NOTHING rather than DO UPDATE: an upsert that updates would require an
+  -- UPDATE policy on this table, and there deliberately is not one. On a
+  -- concurrent insert this returns no row, so re-read the winner.
   insert into wing_flavours (name, normalized_name)
   values (trim(p_name), p_normalized)
-  on conflict (normalized_name) do update set name = wing_flavours.name
+  on conflict (normalized_name) do nothing
   returning id into found;
+
+  if found is null then
+    select id into found from wing_flavours where normalized_name = p_normalized;
+  end if;
 
   return found;
 end $$;
@@ -196,6 +203,7 @@ begin
    where provider = p_provider and external_id = p_external_id;
   if found is not null then return found; end if;
 
+  -- Same reasoning as resolve_flavour: no UPDATE policy exists on places.
   insert into places (
     provider, external_id, display_name, normalized_name, formatted_address,
     lat, lng, city, region, country
@@ -203,8 +211,13 @@ begin
     p_provider, p_external_id, p_display_name, p_normalized_name, p_address,
     p_lat, p_lng, p_city, p_region, p_country
   )
-  on conflict (provider, external_id) do update set display_name = places.display_name
+  on conflict (provider, external_id) do nothing
   returning id into found;
+
+  if found is null then
+    select id into found from places
+     where provider = p_provider and external_id = p_external_id;
+  end if;
 
   return found;
 end $$;
