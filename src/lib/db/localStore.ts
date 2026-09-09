@@ -12,6 +12,7 @@ import type {
   Comment,
   FeedItem,
   Follow,
+  FollowRequest,
   FollowState,
   ID,
   Place,
@@ -20,7 +21,7 @@ import type {
   WantToTryEntry,
   WingFlavour,
 } from '../types';
-import type { WingzStore } from './store';
+import type { PendingFollowRequest, WingzStore } from './store';
 
 const KEY = 'wingz:db:v1';
 
@@ -31,6 +32,7 @@ interface DbShape {
   reviews: Review[];
   follows: Follow[];
   comments: Comment[];
+  followRequests: FollowRequest[];
   likes: { userId: ID; reviewId: ID }[];
   saves: { userId: ID; reviewId: ID }[];
   wantToTry: WantToTryEntry[];
@@ -140,8 +142,10 @@ function seedDb(): DbShape {
     followeeId: id,
     createdAt: daysAgo(40),
   }));
+  // u_tom is deliberately absent: they are the private account with a pending
+  // request below, and cannot both already follow you and be asking to.
   follows.push(
-    ...['u_maya', 'u_deshawn', 'u_priya', 'u_tom'].map((id) => ({
+    ...['u_maya', 'u_deshawn', 'u_priya'].map((id) => ({
       followerId: id,
       followeeId: CURRENT_USER_ID,
       createdAt: daysAgo(45),
@@ -154,6 +158,15 @@ function seedDb(): DbShape {
     flavours,
     reviews,
     follows,
+    followRequests: [
+      {
+        id: 'fr1',
+        requesterId: 'u_tom',
+        targetId: CURRENT_USER_ID,
+        status: 'pending',
+        createdAt: daysAgo(1),
+      },
+    ],
     comments: [
       { id: 'c1', reviewId: reviews[0]!.id, authorId: 'u_maya', body: 'Adding this to my list immediately.', createdAt: daysAgo(1) },
       { id: 'c2', reviewId: reviews[3]!.id, authorId: 'u_deshawn', body: 'Five peppers is not a flex, it is a warning.', createdAt: daysAgo(1) },
@@ -181,7 +194,12 @@ export function createLocalStore(): WingzStore {
   function load(): DbShape {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) return JSON.parse(raw) as DbShape;
+      if (raw) {
+        const parsed = JSON.parse(raw) as DbShape;
+        // Older saved databases predate this table.
+        parsed.followRequests ??= [];
+        return parsed;
+      }
     } catch {
       /* fall through to a fresh seed */
     }
@@ -289,23 +307,91 @@ export function createLocalStore(): WingzStore {
     },
 
     async followState(targetId) {
-      return db.follows.some((f) => f.followerId === me() && f.followeeId === targetId)
-        ? 'following'
+      if (db.follows.some((f) => f.followerId === me() && f.followeeId === targetId)) {
+        return 'following';
+      }
+      return db.followRequests.some(
+        (r) => r.requesterId === me() && r.targetId === targetId && r.status === 'pending',
+      )
+        ? 'requested'
         : 'none';
     },
 
     async toggleFollow(targetId) {
-      const i = db.follows.findIndex((f) => f.followerId === me() && f.followeeId === targetId);
+      const followIdx = db.follows.findIndex(
+        (f) => f.followerId === me() && f.followeeId === targetId,
+      );
       let next: FollowState;
-      if (i >= 0) {
-        db.follows.splice(i, 1);
+
+      if (followIdx >= 0) {
+        db.follows.splice(followIdx, 1);
         next = 'none';
       } else {
-        db.follows.push({ followerId: me(), followeeId: targetId, createdAt: new Date().toISOString() });
-        next = profileOf(targetId)?.isPrivate ? 'requested' : 'following';
+        const reqIdx = db.followRequests.findIndex(
+          (r) => r.requesterId === me() && r.targetId === targetId && r.status === 'pending',
+        );
+        if (reqIdx >= 0) {
+          // Tapping again withdraws a pending request.
+          db.followRequests.splice(reqIdx, 1);
+          next = 'none';
+        } else if (profileOf(targetId)?.isPrivate) {
+          db.followRequests.push({
+            id: uid('fr'),
+            requesterId: me(),
+            targetId,
+            status: 'pending',
+            createdAt: new Date().toISOString(),
+          });
+          next = 'requested';
+        } else {
+          db.follows.push({
+            followerId: me(),
+            followeeId: targetId,
+            createdAt: new Date().toISOString(),
+          });
+          next = 'following';
+        }
       }
       commit();
       return next;
+    },
+
+    async incomingFollowRequests() {
+      return db.followRequests
+        .filter((r) => r.targetId === me() && r.status === 'pending')
+        .map((r) => {
+          const requester = profileOf(r.requesterId);
+          return requester
+            ? ({ id: r.id, requester: withCounts(requester), createdAt: r.createdAt } satisfies PendingFollowRequest)
+            : null;
+        })
+        .filter((r): r is PendingFollowRequest => r != null)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    },
+
+    async approveFollowRequest(requestId) {
+      const i = db.followRequests.findIndex((r) => r.id === requestId && r.targetId === me());
+      if (i < 0) return;
+      const req = db.followRequests[i]!;
+      const exists = db.follows.some(
+        (f) => f.followerId === req.requesterId && f.followeeId === req.targetId,
+      );
+      if (!exists) {
+        db.follows.push({
+          followerId: req.requesterId,
+          followeeId: req.targetId,
+          createdAt: new Date().toISOString(),
+        });
+      }
+      db.followRequests.splice(i, 1);
+      commit();
+    },
+
+    async rejectFollowRequest(requestId) {
+      const i = db.followRequests.findIndex((r) => r.id === requestId && r.targetId === me());
+      if (i < 0) return;
+      db.followRequests.splice(i, 1);
+      commit();
     },
 
     async followingProfiles() {

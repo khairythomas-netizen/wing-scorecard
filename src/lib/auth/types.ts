@@ -59,7 +59,15 @@ export function friendlyAuthError(message: string): string {
   if (m.includes('user already registered')) return 'That email already has an account. Try signing in.';
   if (m.includes('password should be at least')) return 'Password must be at least 6 characters.';
   if (m.includes('unable to validate email')) return 'That does not look like a valid email.';
-  if (m.includes('email rate limit')) return 'Too many attempts. Try again in a few minutes.';
+  // This is a project-wide email SENDING quota, not anything the person did.
+  // Supabase's built-in mailer allows only a couple of messages an hour, so
+  // blaming the user for "too many attempts" is both wrong and unhelpful.
+  if (m.includes('email rate limit') || m.includes('over_email_send_rate_limit')) {
+    return 'We could not send your confirmation email just now. Please try again shortly.';
+  }
+  if (m.includes('over_request_rate_limit') || m.includes('too many requests')) {
+    return 'Too many attempts. Try again in a few minutes.';
+  }
   if (m.includes('taken')) return 'That username is taken.';
   if (m.includes('email not confirmed'))
     return 'Confirm your email first — check your inbox for the link.';

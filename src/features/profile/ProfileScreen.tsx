@@ -6,10 +6,19 @@ import { mapProvider, type MapViewport } from '../../lib/map';
 import type { Theme } from '../../hooks/useTheme';
 import { compact } from '../../lib/format';
 import { RankingsScreen } from '../rankings/RankingsScreen';
+import { FollowRequests } from './FollowRequests';
 
 type Tab = 'posts' | 'rankings' | 'map';
 
-export function ProfileScreen({ userId, theme }: { userId: string; theme: Theme }) {
+export function ProfileScreen({
+  userId,
+  theme,
+  onOpenProfile,
+}: {
+  userId: string;
+  theme: Theme;
+  onOpenProfile?: (id: string) => void;
+}) {
   const store = useStore();
   const [tab, setTab] = useState<Tab>('posts');
   const [viewport, setViewport] = useState<MapViewport>({
@@ -81,18 +90,24 @@ export function ProfileScreen({ userId, theme }: { userId: string; theme: Theme 
               className={`w-full rounded-xl py-2.5 text-xs font-extrabold ${
                 followState === 'following'
                   ? 'border border-line bg-surface text-text'
-                  : 'bg-gradient-to-br from-orange to-gold text-white'
+                  : followState === 'requested'
+                    ? 'border border-line bg-surface2 text-muted'
+                    : 'bg-gradient-to-br from-orange to-gold text-white'
               }`}
             >
               {followState === 'following'
                 ? 'Following'
-                : profile.isPrivate
-                  ? 'Request to follow'
-                  : 'Follow'}
+                : followState === 'requested'
+                  ? 'Requested'
+                  : profile.isPrivate
+                    ? 'Request to follow'
+                    : 'Follow'}
             </button>
           )}
         </div>
       </div>
+
+      {isMe && onOpenProfile && <FollowRequests onOpenProfile={onOpenProfile} />}
 
       <div className="mt-4 grid grid-cols-3 border-y border-line">
         {(['posts', 'rankings', 'map'] as Tab[]).map((t) => (
@@ -113,7 +128,9 @@ export function ProfileScreen({ userId, theme }: { userId: string; theme: Theme 
         <div className="px-8 py-16 text-center">
           <p className="text-sm font-bold">This account is private.</p>
           <p className="mt-1.5 text-xs text-muted">
-            Follow @{profile.username} to see their posts, rankings and map.
+            {followState === 'requested'
+              ? `@${profile.username} has to approve your request before you can see their posts, rankings and map.`
+              : `Follow @${profile.username} to see their posts, rankings and map.`}
           </p>
         </div>
       ) : tab === 'posts' ? (

@@ -131,7 +131,7 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
         {tab === 'rate' && <RateScreen onPublished={() => go('feed')} />}
         {tab === 'rankings' && <RankingsScreen />}
         {tab === 'profile' && profileId && (
-          <ProfileScreen key={profileId} userId={profileId} theme={theme} />
+          <ProfileScreen key={profileId} userId={profileId} theme={theme} onOpenProfile={openProfile} />
         )}
         {tab === 'profile' && !profileId && !profile && (
           <Spinner label="Loading profile" />

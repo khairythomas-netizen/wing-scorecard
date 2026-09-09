@@ -11,6 +11,13 @@ import type {
   WingFlavour,
 } from '../types';
 
+/** A pending request to follow a private account, with who is asking. */
+export interface PendingFollowRequest {
+  id: ID;
+  requester: Profile;
+  createdAt: string;
+}
+
 /** A photo on its way into a review. `file` is absent for already-hosted URLs. */
 export interface DraftPhoto {
   url: string;
@@ -89,8 +96,14 @@ export interface WingzStore {
   listSuggestedProfiles(): Promise<Profile[]>;
 
   followState(targetId: ID): Promise<FollowState>;
+  /** Follow, unfollow, request, or withdraw a request, depending on state. */
   toggleFollow(targetId: ID): Promise<FollowState>;
   followingProfiles(): Promise<Profile[]>;
+
+  /** Requests waiting on the current user's approval. */
+  incomingFollowRequests(): Promise<PendingFollowRequest[]>;
+  approveFollowRequest(requestId: ID): Promise<void>;
+  rejectFollowRequest(requestId: ID): Promise<void>;
 
   getFlavours(): Promise<WingFlavour[]>;
   listCities(): Promise<string[]>;

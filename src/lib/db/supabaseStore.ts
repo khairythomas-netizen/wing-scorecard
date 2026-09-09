@@ -13,7 +13,7 @@ import type {
   Review,
   WingFlavour,
 } from '../types';
-import type { DraftPhoto, WingzStore } from './store';
+import type { DraftPhoto, PendingFollowRequest, WingzStore } from './store';
 
 /* --------------------------------------------------------------- row types */
 
@@ -331,6 +331,41 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
       fail('Follow', (await client.from('follows').insert({ follower_id: uid, followee_id: targetId })).error);
       notify();
       return 'following';
+    },
+
+    async incomingFollowRequests() {
+      const uid = me();
+      if (!uid) return [];
+      const { data } = await client
+        .from('follow_requests')
+        .select('id, created_at, requester:profiles!follow_requests_requester_id_fkey(id, username, display_name, bio, avatar_url, is_private)')
+        .eq('target_id', uid)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+
+      return (data ?? [])
+        .map((r) => {
+          const row = r as unknown as {
+            id: string; created_at: string; requester: Record<string, unknown> | null;
+          };
+          if (!row.requester) return null;
+          return {
+            id: row.id,
+            requester: toProfile(row.requester as never),
+            createdAt: row.created_at,
+          } satisfies PendingFollowRequest;
+        })
+        .filter((r): r is PendingFollowRequest => r != null);
+    },
+
+    async approveFollowRequest(requestId) {
+      fail('Approve request', (await client.rpc('approve_follow_request', { p_request_id: requestId })).error);
+      notify();
+    },
+
+    async rejectFollowRequest(requestId) {
+      fail('Decline request', (await client.rpc('reject_follow_request', { p_request_id: requestId })).error);
+      notify();
     },
 
     async followingProfiles() {

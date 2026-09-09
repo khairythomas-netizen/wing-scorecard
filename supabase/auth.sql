@@ -226,3 +226,56 @@ grant execute on function resolve_flavour(text, text) to authenticated;
 grant execute on function resolve_place(
   text, text, text, text, text, double precision, double precision, text, text, text
 ) to authenticated;
+
+-- ------------------------------------------------- follow request handling
+
+-- Approving a request inserts a follows row whose follower_id is the
+-- REQUESTER, not the person approving. The follows_insert policy requires
+-- follower_id = auth.uid(), so the approver cannot write that row directly.
+-- Hence security definer, with an explicit check that the caller really is
+-- the target of the request.
+create or replace function approve_follow_request(p_request_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare req record;
+begin
+  select * into req from follow_requests where id = p_request_id;
+  if req is null then
+    raise exception 'Request not found';
+  end if;
+  if req.target_id <> auth.uid() then
+    raise exception 'Not your request to approve';
+  end if;
+  if req.status <> 'pending' then
+    raise exception 'Request is already %', req.status;
+  end if;
+
+  insert into follows (follower_id, followee_id)
+  values (req.requester_id, req.target_id)
+  on conflict (follower_id, followee_id) do nothing;
+
+  -- Delete rather than mark approved: the follows row is now the record, and
+  -- keeping a stale row would block the person re-requesting after unfollowing.
+  delete from follow_requests where id = p_request_id;
+end $$;
+
+create or replace function reject_follow_request(p_request_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare req record;
+begin
+  select * into req from follow_requests where id = p_request_id;
+  if req is null then
+    raise exception 'Request not found';
+  end if;
+  if req.target_id <> auth.uid() then
+    raise exception 'Not your request to decline';
+  end if;
+  delete from follow_requests where id = p_request_id;
+end $$;
+
+grant execute on function approve_follow_request(uuid) to authenticated;
+grant execute on function reject_follow_request(uuid) to authenticated;
+
+-- A requester withdrawing their own pending request.
+drop policy if exists freq_delete on follow_requests;
+create policy freq_delete on follow_requests for delete
+  using (requester_id = auth.uid() or target_id = auth.uid());

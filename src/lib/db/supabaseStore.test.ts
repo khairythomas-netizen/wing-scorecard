@@ -185,6 +185,16 @@ describe('auth error messages', () => {
     expect(friendlyAuthError('Email not confirmed')).toMatch(/Confirm your email/);
   });
 
+  it('does not blame the user for a project-wide email quota', () => {
+    const msg = friendlyAuthError('email rate limit exceeded');
+    expect(msg).toMatch(/confirmation email/i);
+    expect(msg).not.toMatch(/too many attempts/i);
+  });
+
+  it('still reports a genuine per-user request flood as such', () => {
+    expect(friendlyAuthError('over_request_rate_limit')).toMatch(/too many attempts/i);
+  });
+
   it('passes an unrecognised message through unchanged', () => {
     expect(friendlyAuthError('Something specific broke')).toBe('Something specific broke');
   });

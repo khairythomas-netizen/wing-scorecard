@@ -239,3 +239,64 @@ describe('places provider', () => {
     expect(await mockPlacesProvider.autocomplete('  ')).toEqual([]);
   });
 });
+
+describe('follow requests for private accounts', () => {
+  const PRIVATE = 'u_tom'; // the seeded private account
+  const PUBLIC = 'u_maya';
+
+  it('follows a public account immediately', async () => {
+    await store.toggleFollow(PUBLIC); // seeded as already followed -> unfollow
+    expect(await store.followState(PUBLIC)).toBe('none');
+    expect(await store.toggleFollow(PUBLIC)).toBe('following');
+  });
+
+  it('only requests when the account is private', async () => {
+    expect(await store.followState(PRIVATE)).toBe('none');
+    expect(await store.toggleFollow(PRIVATE)).toBe('requested');
+    expect(await store.followState(PRIVATE)).toBe('requested');
+  });
+
+  it('does not grant access while a request is only pending', async () => {
+    await store.toggleFollow(PRIVATE);
+    const rows = await store.rankings({ scope: 'global' });
+    expect(rows.some((r) => r.review.authorId === PRIVATE)).toBe(false);
+  });
+
+  it('withdraws a pending request when tapped again', async () => {
+    await store.toggleFollow(PRIVATE);
+    expect(await store.toggleFollow(PRIVATE)).toBe('none');
+    expect(await store.followState(PRIVATE)).toBe('none');
+  });
+
+  it('lists requests aimed at the current user', async () => {
+    // The seed has u_tom requesting to follow the current user.
+    const reqs = await store.incomingFollowRequests();
+    expect(reqs).toHaveLength(1);
+    expect(reqs[0]!.requester.id).toBe('u_tom');
+  });
+
+  it('approving creates the follow in the requester -> target direction', async () => {
+    const [req] = await store.incomingFollowRequests();
+    await store.approveFollowRequest(req!.id);
+
+    expect(await store.incomingFollowRequests()).toHaveLength(0);
+    // The requester now follows us; we do not follow them back.
+    expect(await store.followState('u_tom')).toBe('none');
+    const theirFollowing = await store.getProfile('u_tom');
+    expect(theirFollowing!.followingCount).toBeGreaterThan(0);
+  });
+
+  it('declining removes the request without creating a follow', async () => {
+    const [req] = await store.incomingFollowRequests();
+    await store.rejectFollowRequest(req!.id);
+    expect(await store.incomingFollowRequests()).toHaveLength(0);
+    const tom = await store.getProfile('u_tom');
+    expect(tom!.followingCount).toBe(0);
+  });
+
+  it('ignores a request that is not addressed to you', async () => {
+    await store.approveFollowRequest('does-not-exist');
+    await store.rejectFollowRequest('does-not-exist');
+    expect(await store.incomingFollowRequests()).toHaveLength(1);
+  });
+});
