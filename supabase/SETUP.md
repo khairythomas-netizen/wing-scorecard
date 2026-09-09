@@ -10,13 +10,18 @@ The free tier is enough. Note the region closest to your users.
 
 ## 2. Run the SQL
 
-In the dashboard, open **SQL Editor** and run these two files **in order**:
+Open **SQL Editor**, **clear it completely** (Cmd+A, Delete), then paste
+`supabase/setup.sql` and run it.
 
-1. `supabase/schema.sql` — tables, row-level security, aggregate views
-2. `supabase/auth.sql` — profile trigger, username claiming, storage bucket,
-   and the transactional `publish_review` RPC
+Clearing first matters. The editor keeps whatever was pasted before, and a
+failed earlier attempt still sitting in the buffer will error out before your
+new paste is ever reached — usually as `relation "profiles" already exists`,
+which looks like the new file failing when it is actually the old one.
 
-Run them as two separate queries. `auth.sql` depends on `schema.sql`.
+`setup.sql` is `schema.sql` and `auth.sql` concatenated in dependency order.
+Every statement is guarded, so it is safe to run repeatedly: it creates what is
+missing and leaves existing objects and data alone. Run the two files
+separately only if you want to apply them piecemeal.
 
 ## 3. Configure auth
 
