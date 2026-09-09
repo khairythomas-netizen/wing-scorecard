@@ -65,7 +65,7 @@ export function UsernameScreen() {
           : { text: 'Letters, numbers, dot and underscore.', tone: 'text-muted' };
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[440px] flex-col justify-center px-6 py-10">
+    <div className="safe-screen min-h-app mx-auto flex w-full max-w-[440px] flex-col justify-center px-6">
       <div className="mb-8 flex justify-center">
         <BrandLockup />
       </div>

@@ -14,7 +14,7 @@ export function BottomNav({ active, onChange }: { active: TabId; onChange: (tab:
   return (
     <nav
       aria-label="Primary"
-      className="safe-bottom fixed bottom-0 left-1/2 z-50 grid w-full max-w-[600px] -translate-x-1/2 grid-cols-5 border-t border-line bg-[var(--glass)] px-2 pt-1.5 backdrop-blur-xl"
+      className="safe-bottom fixed bottom-0 left-1/2 z-50 grid h-[calc(60px+var(--safe-bottom))] w-full max-w-[600px] -translate-x-1/2 grid-cols-5 content-start border-t border-line bg-[var(--glass)] px-2 pt-1.5 backdrop-blur-xl"
     >
       {TABS.map(({ id, label, Icon }) => {
         const on = active === id;

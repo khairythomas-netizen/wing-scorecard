@@ -13,8 +13,14 @@ alter table profiles
   alter column username set default null;
 
 -- Unique but nullable: many profiles may sit at NULL, only one can hold a name.
-drop index if exists profiles_username_key;
-create unique index if not exists profiles_username_unique
+--
+-- The original UNIQUE came from a column constraint, and Postgres refuses to
+-- DROP INDEX an index that backs a constraint -- it has to be dropped as the
+-- constraint. A partial unique index on lower(username) replaces it, which
+-- also makes the uniqueness case-insensitive.
+alter table profiles drop constraint if exists profiles_username_key;
+drop index if exists profiles_username_unique;
+create unique index profiles_username_unique
   on profiles (lower(username)) where username is not null;
 
 create or replace function handle_new_user() returns trigger

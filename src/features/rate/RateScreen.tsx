@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Sheet } from '../../components/Sheet';
 import { useQuery, useStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
@@ -74,6 +74,29 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [touched, setTouched] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const scoreSection = useRef<HTMLDivElement>(null);
+  const [scoringInView, setScoringInView] = useState(false);
+
+  // The running-score bar is pinned, so anything it floats over is unreadable.
+  // Reveal it once the scoring section has been reached and keep it from then
+  // on: while the user is still filling in photo and details there is no score
+  // worth showing, but once they are scoring it should never flicker away.
+  useEffect(() => {
+    const check = () => {
+      const el = scoreSection.current;
+      if (!el) return;
+      const reached = el.getBoundingClientRect().top < window.innerHeight * 0.85;
+      setScoringInView((was) => was || reached);
+    };
+    check();
+    window.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check);
+    return () => {
+      window.removeEventListener('scroll', check);
+      window.removeEventListener('resize', check);
+    };
+  }, []);
+
   const flavours = useQuery([], (s) => s.getFlavours());
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
@@ -112,6 +135,11 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
   if (d.heat == null) missing.push('a heat rating');
   const valid = missing.length === 0;
 
+  // Two independent reasons to show the pinned bar. `valid` is the safety net:
+  // if the scroll listener ever fails to fire, a complete review must still be
+  // publishable rather than stranding the button off-screen forever.
+  const showScoreBar = scoringInView || valid;
+
   const publish = async () => {
     setTouched(true);
     if (!valid || !d.place || d.heat == null || priceCents == null) {
@@ -146,7 +174,7 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
   };
 
   return (
-    <div className="pb-24">
+    <div className="pb-28">
       <header className="px-4 pb-3 pt-4">
         <h1 className="text-[28px] font-black leading-none tracking-tight">Rate wings</h1>
         <p className="mt-1.5 text-xs text-muted">Photo first. Score second.</p>
@@ -204,6 +232,7 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
         <HeatPicker value={d.heat} onChange={(h) => set('heat', h)} />
       </div>
 
+      <div ref={scoreSection} />
       <SectionBar title="Core score" detail={`${CORE_MAX.toFixed(1)} points`} />
       <div className="px-4">
         <CookSlider position={d.cookPosition} onChange={(p) => set('cookPosition', p)} />
@@ -237,9 +266,14 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
         </p>
       )}
 
-      {/* Pinned above the nav so the running score is always visible while
-          scoring, rather than sticking mid-form and covering the fields. */}
-      <div className="fixed bottom-[86px] left-1/2 z-30 flex w-[calc(100%-2rem)] max-w-[568px] -translate-x-1/2 items-center justify-between gap-3 rounded-xl2 border border-line bg-[var(--glass)] px-4 py-3 shadow-card backdrop-blur-xl">
+      {/* Pinned above the nav, but held back until the user reaches the
+          scoring section — a translucent bar floating over the photo and
+          details fields makes them unreadable. */}
+      <div className={`above-nav fixed left-1/2 z-30 flex w-[calc(100%-2rem)] max-w-[568px] -translate-x-1/2 items-center justify-between gap-3 rounded-xl2 border border-line bg-[var(--glass)] px-4 py-3 shadow-card backdrop-blur-xl transition-all duration-200 ${
+          showScoreBar
+            ? 'pointer-events-auto translate-y-0 opacity-100'
+            : 'pointer-events-none translate-y-3 opacity-0'
+        }`}>
         <button
           type="button"
           onClick={() => setShowBreakdown(true)}

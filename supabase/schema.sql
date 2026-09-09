@@ -14,7 +14,7 @@ create extension if not exists "pgcrypto";
 
 -- ---------------------------------------------------------------- identity
 
-create table profiles (
+create table if not exists profiles (
   id             uuid primary key references auth.users on delete cascade,
   username       text unique not null check (username ~ '^[a-z0-9_.]{3,30}$'),
   display_name   text not null default '',
@@ -24,16 +24,16 @@ create table profiles (
   created_at     timestamptz not null default now()
 );
 
-create table follows (
+create table if not exists follows (
   follower_id  uuid not null references profiles on delete cascade,
   followee_id  uuid not null references profiles on delete cascade,
   created_at   timestamptz not null default now(),
   primary key (follower_id, followee_id),
   check (follower_id <> followee_id)
 );
-create index on follows (followee_id);
+create index if not exists follows_followee_idx on follows (followee_id);
 
-create table follow_requests (
+create table if not exists follow_requests (
   id            uuid primary key default gen_random_uuid(),
   requester_id  uuid not null references profiles on delete cascade,
   target_id     uuid not null references profiles on delete cascade,
@@ -46,7 +46,7 @@ create table follow_requests (
 -- ------------------------------------------------------------------ places
 
 -- A place is provider-owned identity (Google today, anything tomorrow).
-create table places (
+create table if not exists places (
   id                 uuid primary key default gen_random_uuid(),
   provider           text not null check (provider in ('mock','google','mapbox')),
   external_id        text not null,
@@ -61,19 +61,19 @@ create table places (
   created_at         timestamptz not null default now(),
   unique (provider, external_id)
 );
-create index on places (normalized_name);
-create index on places (city);
+create index if not exists places_normalized_idx on places (normalized_name);
+create index if not exists places_city_idx on places (city);
 -- Bounding-box queries for the Discover map.
-create index on places (lat, lng);
+create index if not exists places_latlng_idx on places (lat, lng);
 
 -- A restaurant is the WingZ-side record; places is the geographic identity.
-create table restaurants (
+create table if not exists restaurants (
   id          uuid primary key default gen_random_uuid(),
   place_id    uuid not null unique references places on delete restrict,
   created_at  timestamptz not null default now()
 );
 
-create table wing_flavours (
+create table if not exists wing_flavours (
   id               uuid primary key default gen_random_uuid(),
   name             text not null,
   normalized_name  text not null unique,
@@ -82,7 +82,7 @@ create table wing_flavours (
 
 -- ----------------------------------------------------------------- reviews
 
-create table reviews (
+create table if not exists reviews (
   id           uuid primary key default gen_random_uuid(),
   author_id    uuid not null references profiles on delete cascade,
   place_id     uuid not null references places on delete restrict,
@@ -100,13 +100,13 @@ create table reviews (
   final_score  numeric(3,1) not null check (final_score between 0 and 10.5),
   created_at   timestamptz not null default now()
 );
-create index on reviews (author_id, created_at desc);
-create index on reviews (place_id, flavour_id);
-create index on reviews (final_score desc);
-create index on reviews (heat);
+create index if not exists reviews_author_created_idx on reviews (author_id, created_at desc);
+create index if not exists reviews_place_flavour_idx on reviews (place_id, flavour_id);
+create index if not exists reviews_final_score_idx on reviews (final_score desc);
+create index if not exists reviews_heat_idx on reviews (heat);
 
 -- One row per review. Every component of the 10.0 base is preserved.
-create table review_scores (
+create table if not exists review_scores (
   review_id      uuid primary key references reviews on delete cascade,
   -- Core: 9.0
   cook           numeric(2,1) not null check (cook between 0 and 3),
@@ -128,7 +128,7 @@ create table review_scores (
 );
 
 -- Up to 5 separate reasons, each 0.1-0.5, combined never above 0.5.
-create table review_bonuses (
+create table if not exists review_bonuses (
   id         uuid primary key default gen_random_uuid(),
   review_id  uuid not null references reviews on delete cascade,
   reason     text not null default '',
@@ -136,7 +136,7 @@ create table review_bonuses (
   position   smallint not null check (position between 0 and 4),
   unique (review_id, position)
 );
-create index on review_bonuses (review_id);
+create index if not exists review_bonuses_review_idx on review_bonuses (review_id);
 
 create or replace function enforce_bonus_cap() returns trigger
 language plpgsql as $$
@@ -156,11 +156,12 @@ begin
   return new;
 end $$;
 
+drop trigger if exists review_bonuses_cap on review_bonuses;
 create trigger review_bonuses_cap
   before insert or update on review_bonuses
   for each row execute function enforce_bonus_cap();
 
-create table review_photos (
+create table if not exists review_photos (
   id         uuid primary key default gen_random_uuid(),
   review_id  uuid not null references reviews on delete cascade,
   url        text not null,
@@ -173,30 +174,30 @@ create table review_photos (
 
 -- ------------------------------------------------------------ interactions
 
-create table likes (
+create table if not exists likes (
   user_id    uuid not null references profiles on delete cascade,
   review_id  uuid not null references reviews on delete cascade,
   created_at timestamptz not null default now(),
   primary key (user_id, review_id)
 );
 
-create table comments (
+create table if not exists comments (
   id         uuid primary key default gen_random_uuid(),
   review_id  uuid not null references reviews on delete cascade,
   author_id  uuid not null references profiles on delete cascade,
   body       text not null check (length(body) between 1 and 2000),
   created_at timestamptz not null default now()
 );
-create index on comments (review_id, created_at);
+create index if not exists comments_review_created_idx on comments (review_id, created_at);
 
-create table saved_posts (
+create table if not exists saved_posts (
   user_id    uuid not null references profiles on delete cascade,
   review_id  uuid not null references reviews on delete cascade,
   created_at timestamptz not null default now(),
   primary key (user_id, review_id)
 );
 
-create table want_to_try (
+create table if not exists want_to_try (
   id                uuid primary key default gen_random_uuid(),
   user_id           uuid not null references profiles on delete cascade,
   place_id          uuid not null references places on delete cascade,
@@ -209,7 +210,7 @@ create table want_to_try (
 -- ----------------------------------------------------------- aggregation
 
 -- Restaurant + flavour rollup. This is the view the heat filters read.
-create materialized view place_flavour_stats as
+create materialized view if not exists place_flavour_stats as
 select
   r.place_id,
   r.flavour_id,
@@ -229,10 +230,10 @@ join review_scores s on s.review_id = r.id
 where r.visibility = 'public'
 group by r.place_id, r.flavour_id;
 
-create unique index on place_flavour_stats (place_id, flavour_id);
+create unique index if not exists place_flavour_stats_pk on place_flavour_stats (place_id, flavour_id);
 
 -- Whole-restaurant rollup.
-create materialized view place_stats as
+create materialized view if not exists place_stats as
 select
   r.place_id,
   count(*)                     as review_count,
@@ -244,10 +245,10 @@ join review_scores s on s.review_id = r.id
 where r.visibility = 'public'
 group by r.place_id;
 
-create unique index on place_stats (place_id);
+create unique index if not exists place_stats_pk on place_stats (place_id);
 
 -- City rollup, for "best wings in a city".
-create materialized view city_stats as
+create materialized view if not exists city_stats as
 select
   p.city, p.region, p.country,
   count(*)                     as review_count,
@@ -258,7 +259,7 @@ join places p on p.id = r.place_id
 where r.visibility = 'public'
 group by p.city, p.region, p.country;
 
-create unique index on city_stats (city, region, country);
+create unique index if not exists city_stats_pk on city_stats (city, region, country);
 
 -- ---------------------------------------------------------- row level security
 
@@ -278,24 +279,37 @@ alter table wing_flavours   enable row level security;
 alter table restaurants     enable row level security;
 
 -- Places and flavours are shared public vocabulary.
-create policy places_read   on places        for select using (true);
-create policy places_write  on places        for insert with check (auth.uid() is not null);
+drop policy if exists places_read on places;
+create policy places_read on places        for select using (true);
+drop policy if exists places_write on places;
+create policy places_write on places        for insert with check (auth.uid() is not null);
+drop policy if exists flavours_read on wing_flavours;
 create policy flavours_read on wing_flavours for select using (true);
+drop policy if exists flavours_write on wing_flavours;
 create policy flavours_write on wing_flavours for insert with check (auth.uid() is not null);
+drop policy if exists restaurants_read on restaurants;
 create policy restaurants_read on restaurants for select using (true);
 
 -- Profile metadata stays visible even for private accounts; the detailed
 -- content behind it does not.
-create policy profiles_read   on profiles for select using (true);
+drop policy if exists profiles_read on profiles;
+create policy profiles_read on profiles for select using (true);
+drop policy if exists profiles_update on profiles;
 create policy profiles_update on profiles for update using (id = auth.uid());
 
-create policy follows_read   on follows for select using (true);
+drop policy if exists follows_read on follows;
+create policy follows_read on follows for select using (true);
+drop policy if exists follows_insert on follows;
 create policy follows_insert on follows for insert with check (follower_id = auth.uid());
+drop policy if exists follows_delete on follows;
 create policy follows_delete on follows for delete using (follower_id = auth.uid());
 
-create policy freq_read   on follow_requests for select
+drop policy if exists freq_read on follow_requests;
+create policy freq_read on follow_requests for select
   using (requester_id = auth.uid() or target_id = auth.uid());
+drop policy if exists freq_insert on follow_requests;
 create policy freq_insert on follow_requests for insert with check (requester_id = auth.uid());
+drop policy if exists freq_update on follow_requests;
 create policy freq_update on follow_requests for update using (target_id = auth.uid());
 
 -- The single rule that decides who can see a review.
@@ -322,40 +336,57 @@ returns boolean language sql stable as $$
     );
 $$;
 
+drop policy if exists reviews_read on reviews;
 create policy reviews_read on reviews for select
   using (can_view_review(author_id, visibility));
+drop policy if exists reviews_write on reviews;
 create policy reviews_write on reviews for insert with check (author_id = auth.uid());
+drop policy if exists reviews_update on reviews;
 create policy reviews_update on reviews for update using (author_id = auth.uid());
+drop policy if exists reviews_delete on reviews;
 create policy reviews_delete on reviews for delete using (author_id = auth.uid());
 
 -- Child rows inherit their parent review's visibility.
+drop policy if exists scores_read on review_scores;
 create policy scores_read on review_scores for select using (
   exists (select 1 from reviews r
            where r.id = review_id and can_view_review(r.author_id, r.visibility)));
+drop policy if exists scores_write on review_scores;
 create policy scores_write on review_scores for insert with check (
   exists (select 1 from reviews r where r.id = review_id and r.author_id = auth.uid()));
 
+drop policy if exists bonuses_read on review_bonuses;
 create policy bonuses_read on review_bonuses for select using (
   exists (select 1 from reviews r
            where r.id = review_id and can_view_review(r.author_id, r.visibility)));
+drop policy if exists bonuses_write on review_bonuses;
 create policy bonuses_write on review_bonuses for all using (
   exists (select 1 from reviews r where r.id = review_id and r.author_id = auth.uid()));
 
+drop policy if exists photos_read on review_photos;
 create policy photos_read on review_photos for select using (
   exists (select 1 from reviews r
            where r.id = review_id and can_view_review(r.author_id, r.visibility)));
+drop policy if exists photos_write on review_photos;
 create policy photos_write on review_photos for all using (
   exists (select 1 from reviews r where r.id = review_id and r.author_id = auth.uid()));
 
-create policy likes_read   on likes for select using (true);
-create policy likes_write  on likes for all    using (user_id = auth.uid());
+drop policy if exists likes_read on likes;
+create policy likes_read on likes for select using (true);
+drop policy if exists likes_write on likes;
+create policy likes_write on likes for all    using (user_id = auth.uid());
 
-create policy comments_read  on comments for select using (
+drop policy if exists comments_read on comments;
+create policy comments_read on comments for select using (
   exists (select 1 from reviews r
            where r.id = review_id and can_view_review(r.author_id, r.visibility)));
+drop policy if exists comments_write on comments;
 create policy comments_write on comments for insert with check (author_id = auth.uid());
+drop policy if exists comments_delete on comments;
 create policy comments_delete on comments for delete using (author_id = auth.uid());
 
 -- Saves and Want to Try are private to their owner.
+drop policy if exists saved_own on saved_posts;
 create policy saved_own on saved_posts for all using (user_id = auth.uid());
-create policy wtt_own   on want_to_try for all using (user_id = auth.uid());
+drop policy if exists wtt_own on want_to_try;
+create policy wtt_own on want_to_try for all using (user_id = auth.uid());

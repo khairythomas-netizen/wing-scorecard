@@ -22,6 +22,17 @@
   --glass: rgb(10 12 15 / 0.82);
   --shadow: 0 18px 55px rgb(0 0 0 / 0.5);
   --map: #12161a;
+
+  /* Safe-area insets, named so layout can add its own padding on top of them.
+     Overridable in devtools to simulate a notched device. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  /* Bottom nav height, excluding the home-indicator inset. */
+  --nav-height: 60px;
+
   color-scheme: dark;
 }
 
@@ -48,6 +59,12 @@ html,
 body,
 #root {
   height: 100%;
+}
+
+/* dvh tracks the genuinely visible viewport; vh does not on iOS Safari. */
+.min-h-app {
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 body {
@@ -78,11 +95,32 @@ body * {
 }
 
 @layer components {
-  .safe-top {
-    padding-top: env(safe-area-inset-top);
+  /* These live in @layer components, which Tailwind emits BEFORE utilities.
+     A `pt-3` in the same class list would win and silently drop the inset, so
+     each of these bakes in its own padding rather than relying on one. */
+  .app-header {
+    padding-top: calc(var(--safe-top) + 0.7rem);
+    padding-bottom: 0.625rem;
   }
+
+  /* Clears the nav and the home indicator, so the last row is never buried. */
+  .app-scroll {
+    padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 28px);
+  }
+
   .safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: var(--safe-bottom);
+  }
+
+  /* Vertically centred screens that must still clear both insets. */
+  .safe-screen {
+    padding-top: calc(var(--safe-top) + 1.5rem);
+    padding-bottom: calc(var(--safe-bottom) + 1.5rem);
+  }
+
+  /* Anything pinned directly above the bottom nav. */
+  .above-nav {
+    bottom: calc(var(--nav-height) + var(--safe-bottom) + 12px);
   }
 
   /* Shared slider treatment for every 0-max metric. */

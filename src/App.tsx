@@ -41,7 +41,7 @@ function Gate() {
 
   if (loading) {
     return (
-      <div className="grid min-h-screen place-items-center">
+      <div className="min-h-app grid place-items-center">
         <Spinner label="Starting WingZ" />
       </div>
     );
@@ -89,8 +89,8 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
   };
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[600px] pb-[92px]">
-      <header className="safe-top sticky top-0 z-40 flex items-center justify-between border-b border-line bg-[var(--glass)] px-4 pb-2.5 pt-3 backdrop-blur-xl">
+    <div className="min-h-app app-scroll mx-auto w-full max-w-[600px]">
+      <header className="app-header sticky top-0 z-40 flex items-center justify-between border-b border-line bg-[var(--glass)] px-4 backdrop-blur-xl">
         <BrandLockup />
         <div className="flex items-center gap-2">
           {client.requiresSignIn && (
