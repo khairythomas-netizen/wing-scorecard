@@ -185,6 +185,18 @@ function Frame({ children }: { children: React.ReactNode }) {
         <BrandLockup />
       </div>
       <div className="animate-rise">{children}</div>
+      {/* Signing in is the moment someone decides to trust the app, so the
+          terms they are agreeing to belong on this screen rather than buried
+          in a settings menu. */}
+      <p className="mt-8 text-center text-[11px] text-muted">
+        <a href={`${import.meta.env.BASE_URL}privacy.html`} className="underline underline-offset-2">
+          Privacy
+        </a>
+        <span className="mx-2">·</span>
+        <a href={`${import.meta.env.BASE_URL}terms.html`} className="underline underline-offset-2">
+          Terms
+        </a>
+      </p>
     </div>
   );
 }
