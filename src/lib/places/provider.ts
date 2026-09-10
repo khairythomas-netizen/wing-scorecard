@@ -22,6 +22,14 @@ export interface PlacesProvider {
 
   /** Places within a bounding box, for populating the Discover map. */
   nearby(bounds: LatLngBounds): Promise<Place[]>;
+
+  /**
+   * Resolve a street address to coordinates, for a restaurant the provider
+   * has never heard of. New and small places are routinely missing from any
+   * dataset, and a wing app hits that constantly — so a user must be able to
+   * add one rather than be told it does not exist.
+   */
+  geocodeAddress(address: string): Promise<{ lat: number; lng: number; formatted: string } | null>;
 }
 
 export interface PlaceSuggestion {

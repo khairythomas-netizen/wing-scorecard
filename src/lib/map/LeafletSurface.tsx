@@ -5,8 +5,9 @@ import type { MapMarker, MapSurfaceProps } from './provider';
 import {
   ATTRIBUTION,
   BASE_TILES,
+  MAX_ZOOM,
   USING_MAPTILER,
-  needsDarkening,
+  tileFilterFor,
   tileTemplateFor,
 } from './tiles';
 
@@ -96,7 +97,7 @@ export function LeafletSurface({
     const layer = new (ZoomAwareTiles as unknown as typeof L.TileLayer)(BASE_TILES[theme], {
       attribution: ATTRIBUTION,
       subdomains: USING_MAPTILER ? 'abcd' : '',
-      maxZoom: 19,
+      maxZoom: MAX_ZOOM,
       detectRetina: USING_MAPTILER,
     });
     (layer as L.TileLayer & { _wingzTheme: 'dark' | 'light' })._wingzTheme = theme;
@@ -104,15 +105,12 @@ export function LeafletSurface({
 
     // The street map is a full-colour basemap. In dark mode, past the canvas
     // zoom, invert it so it still reads as part of a dark UI.
-    const applyDeepZoomFilter = () => {
+    const applyTileFilter = () => {
       const pane = instance.getPane('tilePane');
       if (!pane) return;
       const themeNow = instance.getContainer().dataset.theme === 'dark' ? 'dark' : 'light';
-      pane.style.filter = needsDarkening(instance.getZoom(), themeNow)
-        ? 'invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.95)'
-        : '';
+      pane.style.filter = tileFilterFor(themeNow);
     };
-    instance.on('zoomend', applyDeepZoomFilter);
 
     // A tile 404 at the edge of coverage is normal; a wholesale failure is not.
     let tileErrors = 0;
@@ -138,7 +136,7 @@ export function LeafletSurface({
     requestAnimationFrame(() => instance.invalidateSize());
 
     instance.getContainer().dataset.theme = theme;
-    applyDeepZoomFilter();
+    applyTileFilter();
 
     map.current = instance;
     tileLayer.current = layer;
@@ -159,8 +157,8 @@ export function LeafletSurface({
     layer._wingzTheme = theme;
     instance.getContainer().dataset.theme = theme;
     layer.setUrl(BASE_TILES[theme], false);
-    // Re-evaluate the deep-zoom filter, which depends on the theme.
-    instance.fire('zoomend');
+    const pane = instance.getPane('tilePane');
+    if (pane) pane.style.filter = tileFilterFor(theme);
   }, [theme]);
 
   useEffect(() => {

@@ -433,6 +433,7 @@ describe('editing a review', () => {
     expect(r.finalScore).toBe(10);
 
     await store.updateReview(r.id, {
+      place: null,
       orderText: '20 wings',
       flavourName: 'Lemon Pepper',
       priceCents: 2500,
@@ -461,6 +462,7 @@ describe('editing a review', () => {
   it('can clear a price that was previously set', async () => {
     const r = await store.createReview(draft({ priceCents: 1899 }));
     await store.updateReview(r.id, {
+      place: null,
       orderText: r.orderText,
       flavourName: 'Mango Habanero',
       priceCents: null,
@@ -479,6 +481,7 @@ describe('editing a review', () => {
   it('re-applies the bonus cap on edit', async () => {
     const r = await store.createReview(draft());
     await store.updateReview(r.id, {
+      place: null,
       orderText: r.orderText,
       flavourName: 'Mango Habanero',
       priceCents: null,
@@ -502,6 +505,7 @@ describe('editing a review', () => {
     const theirs = (await store.reviewsByAuthor('u_maya'))[0]!;
     await expect(
       store.updateReview(theirs.id, {
+        place: null,
         orderText: 'hijacked',
         flavourName: 'Buffalo',
         priceCents: null,
@@ -517,5 +521,46 @@ describe('editing a review', () => {
 
     const after = (await store.reviewsByAuthor('u_maya'))[0]!;
     expect(after.orderText).not.toBe('hijacked');
+  });
+});
+
+describe('changing the restaurant on an existing review', () => {
+  const OTHER = SEED_PLACES.find((p) => p.externalId === 'p_birdbar')!;
+
+  const baseEdit = (r: Awaited<ReturnType<WingzStore['createReview']>>) => ({
+    place: null,
+    orderText: r.orderText,
+    flavourName: 'Mango Habanero',
+    priceCents: r.priceCents,
+    currency: r.currency,
+    heat: r.heat,
+    style: r.style,
+    breading: r.breading,
+    caption: r.caption,
+    scores: r.scores,
+    bonuses: r.bonuses,
+  });
+
+  it('moves the review to a different restaurant', async () => {
+    const r = await store.createReview(draft());
+    await store.updateReview(r.id, { ...baseEdit(r), place: OTHER });
+    const item = (await store.feed()).find((f) => f.review.id === r.id)!;
+    expect(item.place.displayName).toBe('Bird Bar');
+  });
+
+  it('leaves the restaurant alone when none is given', async () => {
+    const r = await store.createReview(draft());
+    await store.updateReview(r.id, baseEdit(r));
+    const item = (await store.feed()).find((f) => f.review.id === r.id)!;
+    expect(item.place.displayName).toBe('Sauce Lab');
+  });
+
+  it('follows the review onto the map at its new location', async () => {
+    const r = await store.createReview(draft());
+    await store.updateReview(r.id, { ...baseEdit(r), place: OTHER });
+    const pins = await store.discoverMarkers({
+      owner: 'mine', minHeat: 1, maxHeat: 5, minScore: 0, flavourId: null,
+    });
+    expect(pins.some((p) => p.place.displayName === 'Bird Bar')).toBe(true);
   });
 });

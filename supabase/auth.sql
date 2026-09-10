@@ -295,7 +295,7 @@ alter table reviews alter column price_cents drop not null;
 -- constraint. Widened rather than dropped: an allowlist still catches typos.
 alter table places drop constraint if exists places_provider_check;
 alter table places add constraint places_provider_check
-  check (provider in ('mock','osm','google','mapbox'));
+  check (provider in ('mock','osm','google','mapbox','manual'));
 
 
 -- ------------------------------------------- wing style and breading
@@ -384,6 +384,7 @@ grant execute on function publish_review(
 -- author-only policies decide who may edit — this grants nothing extra.
 create or replace function update_review(
   p_review_id uuid,
+  p_place_id uuid,
   p_order_text text,
   p_price_cents integer,
   p_currency text,
@@ -400,6 +401,8 @@ create or replace function update_review(
 ) returns void language plpgsql security invoker as $$
 begin
   update reviews set
+    -- Null means "leave the restaurant as it is".
+    place_id    = coalesce(p_place_id, place_id),
     order_text  = p_order_text,
     price_cents = p_price_cents,
     currency    = p_currency,
@@ -445,6 +448,6 @@ begin
 end $$;
 
 grant execute on function update_review(
-  uuid, text, integer, text, smallint, text, uuid, text, text,
+  uuid, uuid, text, integer, text, smallint, text, uuid, text, text,
   numeric, numeric, numeric, jsonb, jsonb
 ) to authenticated;

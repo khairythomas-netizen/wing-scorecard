@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { PinIcon } from '../../components/Icons';
+import { AddPlaceManually } from './AddPlaceManually';
 import { placesProvider, type PlaceSuggestion } from '../../lib/places';
 import {
   distanceKm,
@@ -28,6 +29,7 @@ export function RestaurantPicker({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [near, setNear] = useState<Coords | null>(lastKnownLocation);
+  const [addingManually, setAddingManually] = useState(false);
   const seq = useRef(0);
 
   useEffect(() => {
@@ -80,6 +82,21 @@ export function RestaurantPicker({
     setOpen(true);
     setError('Could not load that place. Try selecting it again.');
   };
+
+  if (addingManually) {
+    return (
+      <AddPlaceManually
+        initialName={query}
+        onAdd={(place) => {
+          onChange(place);
+          setAddingManually(false);
+          setQuery('');
+          setOpen(false);
+        }}
+        onCancel={() => setAddingManually(false)}
+      />
+    );
+  }
 
   if (value) {
     return (
@@ -136,6 +153,16 @@ export function RestaurantPicker({
             <p className="px-3.5 py-3 text-[12px] text-muted">
               No match. Try a shorter search, or include the city.
             </p>
+          )}
+          {!loading && (
+            <button
+              type="button"
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => setAddingManually(true)}
+              className="block w-full border-t border-line px-3.5 py-2.5 text-left text-[12px] font-extrabold text-orange"
+            >
+              + Add {query.trim() ? `"${query.trim()}"` : 'a place'} manually
+            </button>
           )}
           {suggestions.map((s) => (
             <button

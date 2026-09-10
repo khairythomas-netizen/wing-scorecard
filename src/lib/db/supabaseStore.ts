@@ -571,8 +571,28 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
       });
       fail('Save flavour', flavourError);
 
+      // Null leaves the restaurant alone; the RPC treats it as "unchanged".
+      let placeId: string | null = null;
+      if (edit.place) {
+        const { data, error: placeError } = await client.rpc('resolve_place', {
+          p_provider: edit.place.provider,
+          p_external_id: edit.place.externalId,
+          p_display_name: edit.place.displayName,
+          p_normalized_name: edit.place.normalizedName,
+          p_address: edit.place.formattedAddress,
+          p_lat: edit.place.lat,
+          p_lng: edit.place.lng,
+          p_city: edit.place.city,
+          p_region: edit.place.region,
+          p_country: edit.place.country,
+        });
+        fail('Save restaurant', placeError);
+        placeId = data as string;
+      }
+
       const { error } = await client.rpc('update_review', {
         p_review_id: reviewId,
+        p_place_id: placeId,
         p_order_text: edit.orderText,
         p_price_cents: edit.priceCents,
         p_currency: edit.currency,

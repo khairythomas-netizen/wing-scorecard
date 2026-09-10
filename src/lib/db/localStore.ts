@@ -493,7 +493,12 @@ export function createLocalStore(): WingzStore {
         bonuses: edit.bonuses,
       });
 
+      if (edit.place) {
+        if (!placeOf(edit.place.id)) db.places.push(edit.place);
+      }
+
       Object.assign(review, {
+        placeId: edit.place ? edit.place.id : review.placeId,
         orderText: edit.orderText,
         flavourId: resolveFlavour(edit.flavourName).id,
         priceCents: edit.priceCents,

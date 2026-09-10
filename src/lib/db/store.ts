@@ -44,6 +44,8 @@ export interface DraftReview {
 
 /** The fields a review's author may change after posting. */
 export interface ReviewEdit {
+  /** A different restaurant, or null to leave it as it is. */
+  place: Place | null;
   orderText: string;
   flavourName: string;
   priceCents: number | null;

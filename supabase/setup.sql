@@ -2,14 +2,9 @@
 -- WingZ — complete database setup
 --
 -- Paste this ENTIRE file into the Supabase SQL Editor and run it.
---
--- IMPORTANT: clear the editor first. If earlier attempts are still in the
--- buffer above this, their un-guarded CREATE TABLE statements will fail with
--- "relation already exists" before this file is ever reached.
---
--- Safe to run as many times as you like: every statement is guarded, so a
--- partial run just needs running again. It creates what is missing and leaves
--- existing objects and all data alone.
+-- IMPORTANT: clear the editor first, or leftovers from a previous paste
+-- will fail before this file is reached.
+-- Safe to run repeatedly: every statement is guarded.
 -- =====================================================================
 
 
@@ -64,7 +59,7 @@ create table if not exists follow_requests (
 create table if not exists places (
   id                 uuid primary key default gen_random_uuid(),
   -- Keep in sync with Place['provider'] in src/lib/types.ts; a test asserts it.
-  provider           text not null check (provider in ('mock','osm','google','mapbox')),
+  provider           text not null check (provider in ('mock','osm','google','mapbox','manual')),
   external_id        text not null,
   display_name       text not null,
   normalized_name    text not null,
@@ -716,7 +711,7 @@ alter table reviews alter column price_cents drop not null;
 -- constraint. Widened rather than dropped: an allowlist still catches typos.
 alter table places drop constraint if exists places_provider_check;
 alter table places add constraint places_provider_check
-  check (provider in ('mock','osm','google','mapbox'));
+  check (provider in ('mock','osm','google','mapbox','manual'));
 
 
 -- ------------------------------------------- wing style and breading
@@ -805,6 +800,7 @@ grant execute on function publish_review(
 -- author-only policies decide who may edit — this grants nothing extra.
 create or replace function update_review(
   p_review_id uuid,
+  p_place_id uuid,
   p_order_text text,
   p_price_cents integer,
   p_currency text,
@@ -821,6 +817,8 @@ create or replace function update_review(
 ) returns void language plpgsql security invoker as $$
 begin
   update reviews set
+    -- Null means "leave the restaurant as it is".
+    place_id    = coalesce(p_place_id, place_id),
     order_text  = p_order_text,
     price_cents = p_price_cents,
     currency    = p_currency,
@@ -866,6 +864,6 @@ begin
 end $$;
 
 grant execute on function update_review(
-  uuid, text, integer, text, smallint, text, uuid, text, text,
+  uuid, uuid, text, integer, text, smallint, text, uuid, text, text,
   numeric, numeric, numeric, jsonb, jsonb
 ) to authenticated;

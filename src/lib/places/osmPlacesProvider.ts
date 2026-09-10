@@ -138,6 +138,33 @@ export function createOsmPlacesProvider(): PlacesProvider {
       return seen.get(externalId) ?? null;
     },
 
+    async geocodeAddress(address) {
+      const q = address.trim();
+      if (q.length < 5) return null;
+      // Nominatim resolves street addresses better than Photon does, even for
+      // buildings with no named business in them.
+      const params = new URLSearchParams({
+        q,
+        format: 'jsonv2',
+        limit: '1',
+        addressdetails: '1',
+      });
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`);
+      if (!res.ok) return null;
+      const rows = (await res.json()) as {
+        lat: string;
+        lon: string;
+        display_name: string;
+      }[];
+      const hit = rows[0];
+      if (!hit) return null;
+      return {
+        lat: Number(hit.lat),
+        lng: Number(hit.lon),
+        formatted: hit.display_name,
+      };
+    },
+
     async nearby(bounds: LatLngBounds) {
       const params = new URLSearchParams({
         q: 'wings',

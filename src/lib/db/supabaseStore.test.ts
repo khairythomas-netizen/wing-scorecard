@@ -243,30 +243,42 @@ describe('image URL sizing', () => {
   });
 });
 
-describe('map tile selection by zoom', () => {
-  it('uses the grey canvas where the canvas has data', async () => {
+describe('map basemap', () => {
+  it('uses one source at every zoom, so there is no blurry upscaled band', async () => {
     const { tileTemplateFor } = await import('../map/tiles');
-    for (const z of [3, 10, 15, 16]) {
-      expect(tileTemplateFor(z, 'dark')).toContain('World_Dark_Gray_Base');
-      expect(tileTemplateFor(z, 'light')).toContain('World_Light_Gray_Base');
-    }
+    const templates = [3, 10, 16, 17, 19].map((z) => tileTemplateFor(z, 'light'));
+    expect(new Set(templates).size).toBe(1);
+    expect(templates[0]).toContain('World_Topo_Map');
   });
 
-  it('switches to the street map past the canvas limit', async () => {
-    const { tileTemplateFor } = await import('../map/tiles');
-    // Above z16 the canvas serves a "Map data not yet available" placeholder,
-    // and upscaling z16 instead is what made deep zoom look blurry.
-    for (const z of [17, 18, 19]) {
-      expect(tileTemplateFor(z, 'dark')).toContain('World_Street_Map');
-      expect(tileTemplateFor(z, 'light')).toContain('World_Street_Map');
-    }
+  it('darkens the basemap only in dark mode', async () => {
+    const { tileFilterFor } = await import('../map/tiles');
+    // Hue rotation matters: a plain invert turns parks and water magenta.
+    expect(tileFilterFor('dark')).toContain('hue-rotate(180deg)');
+    expect(tileFilterFor('light')).toBe('');
+  });
+});
+
+describe('manual places', () => {
+  it('is an allowed provider in the database, not just the type', async () => {
+    // 'osm' was once added to the type but not the CHECK constraint, and every
+    // review against an OSM restaurant was rejected. Same trap, same guard.
+    const fs = await import('node:fs/promises');
+    const schema = await fs.readFile('supabase/schema.sql', 'utf8');
+    const list = schema.match(/check \(provider in \(([^)]+)\)\)/)?.[1] ?? '';
+    expect(list).toContain("'manual'");
   });
 
-  it('darkens the street map only in dark mode past the switch point', async () => {
-    const { needsDarkening } = await import('../map/tiles');
-    expect(needsDarkening(18, 'dark')).toBe(true);
-    expect(needsDarkening(18, 'light')).toBe(false);
-    // The canvas already matches the palette, so it must never be inverted.
-    expect(needsDarkening(14, 'dark')).toBe(false);
+  it('the mock provider can still geocode an address', async () => {
+    const { mockPlacesProvider } = await import('../places/mockPlacesProvider');
+    const hit = await mockPlacesProvider.geocodeAddress('742 Queen St W');
+    expect(hit).not.toBeNull();
+    expect(typeof hit!.lat).toBe('number');
+    expect(typeof hit!.lng).toBe('number');
+  });
+
+  it('refuses an address too short to geocode', async () => {
+    const { mockPlacesProvider } = await import('../places/mockPlacesProvider');
+    expect(await mockPlacesProvider.geocodeAddress('x')).toBeNull();
   });
 });

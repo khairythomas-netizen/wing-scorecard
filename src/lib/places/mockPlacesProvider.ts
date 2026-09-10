@@ -32,6 +32,13 @@ export const mockPlacesProvider: PlacesProvider = {
     return latency(SEED_PLACES.find((p) => p.externalId === externalId) ?? null);
   },
 
+  async geocodeAddress(address) {
+    const hit = SEED_PLACES.find((p) =>
+      normalizeName(p.formattedAddress).includes(normalizeName(address)),
+    );
+    return hit ? { lat: hit.lat, lng: hit.lng, formatted: hit.formattedAddress } : null;
+  },
+
   async nearby(bounds: LatLngBounds) {
     const hits = SEED_PLACES.filter(
       (p) =>

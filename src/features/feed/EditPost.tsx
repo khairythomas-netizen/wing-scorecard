@@ -5,7 +5,8 @@ import { useQuery, useStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
 import { parsePriceToCents } from '../../lib/format';
 import { calculateScore, formatScore, type BonusEntry } from '../../lib/scoring';
-import type { Breading, FeedItem, WingStyle } from '../../lib/types';
+import type { Breading, FeedItem, Place, WingStyle } from '../../lib/types';
+import { RestaurantPicker } from '../rate/RestaurantPicker';
 import { BonusEditor, newBonusRow } from '../rate/BonusEditor';
 import { CookSlider } from '../rate/CookSlider';
 import { HeatPicker } from '../rate/HeatPicker';
@@ -51,6 +52,9 @@ function Form({ item, onDone }: { item: FeedItem; onDone: () => void }) {
     review.bonuses.length ? review.bonuses : [newBonusRow()],
   );
   const [saving, setSaving] = useState(false);
+  // null means the restaurant is unchanged.
+  const [place, setPlace] = useState<Place | null>(null);
+  const [changingPlace, setChangingPlace] = useState(false);
 
   const set = <K extends keyof typeof s>(key: K, value: (typeof s)[K]) =>
     setS((prev) => ({ ...prev, [key]: value }));
@@ -82,6 +86,7 @@ function Form({ item, onDone }: { item: FeedItem; onDone: () => void }) {
     setSaving(true);
     try {
       await store.updateReview(review.id, {
+        place,
         orderText: orderText.trim(),
         flavourName: flavourName.trim(),
         priceCents: parsePriceToCents(priceText),
@@ -117,10 +122,44 @@ function Form({ item, onDone }: { item: FeedItem; onDone: () => void }) {
       </div>
 
       <div className="space-y-3 px-4">
-        <p className="rounded-xl2 border border-line bg-surface2 px-3.5 py-2.5 text-[11px] text-muted">
-          Editing <span className="font-bold text-text">{item.place.displayName}</span>. The photo
-          and restaurant cannot be changed — post a new review for a different visit.
-        </p>
+        <div className="rounded-xl2 border border-line bg-surface2 p-3">
+          <p className="text-[11px] font-bold text-muted">Restaurant</p>
+          {changingPlace ? (
+            <div className="mt-2">
+              <RestaurantPicker
+                value={place}
+                onChange={(p) => {
+                  setPlace(p);
+                  if (p) setChangingPlace(false);
+                }}
+              />
+              <button
+                onClick={() => {
+                  setPlace(null);
+                  setChangingPlace(false);
+                }}
+                className="mt-2 text-[11px] font-bold text-muted"
+              >
+                Keep {item.place.displayName}
+              </button>
+            </div>
+          ) : (
+            <div className="mt-1 flex items-center gap-2">
+              <p className="min-w-0 flex-1 truncate text-sm font-extrabold">
+                {(place ?? item.place).displayName}
+              </p>
+              <button
+                onClick={() => setChangingPlace(true)}
+                className="shrink-0 rounded-lg border border-line px-2.5 py-1.5 text-[11px] font-bold text-muted"
+              >
+                Change
+              </button>
+            </div>
+          )}
+          <p className="mt-2 text-[10px] leading-relaxed text-muted">
+            The photo cannot be changed here — post a new review for a different visit.
+          </p>
+        </div>
 
         <L label="What did you order?">
           <input value={orderText} onChange={(e) => setOrderText(e.target.value)} className={input} />

@@ -17,7 +17,7 @@ export interface Place {
   id: ID;
   /** The provider's own identifier, e.g. a Google Places place_id. */
   externalId: string;
-  provider: 'mock' | 'osm' | 'google' | 'mapbox';
+  provider: 'mock' | 'osm' | 'google' | 'mapbox' | 'manual';
   /** What the user sees, e.g. "Bird Bar". */
   displayName: string;
   /** Lowercased, punctuation-stripped, for dedupe and matching. */
