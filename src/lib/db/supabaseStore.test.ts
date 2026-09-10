@@ -219,6 +219,20 @@ describe('schema and types agree', () => {
 
     expect(dbProviders).toEqual(tsProviders);
   });
+  it('setup.sql is still schema.sql plus auth.sql, verbatim', async () => {
+    // setup.sql is the file people actually paste into the SQL editor. It is a
+    // concatenation of the other two, which means an edit to one of them that
+    // misses setup.sql ships a database that disagrees with the repo.
+    const fs = await import('node:fs/promises');
+    const [schema, auth, setup] = await Promise.all([
+      fs.readFile('supabase/schema.sql', 'utf8'),
+      fs.readFile('supabase/auth.sql', 'utf8'),
+      fs.readFile('supabase/setup.sql', 'utf8'),
+    ]);
+
+    expect(setup).toContain(schema.trim());
+    expect(setup).toContain(auth.trim());
+  });
 });
 
 describe('image URL sizing', () => {
@@ -281,4 +295,5 @@ describe('manual places', () => {
     const { mockPlacesProvider } = await import('../places/mockPlacesProvider');
     expect(await mockPlacesProvider.geocodeAddress('x')).toBeNull();
   });
+
 });

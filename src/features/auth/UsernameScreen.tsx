@@ -1,14 +1,14 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { BrandLockup } from '../../components/Brand';
 import { useAuth } from '../../hooks/useAuth';
-import { friendlyAuthError, validateUsername } from '../../lib/auth/types';
+import { friendlyAuthError, suggestUsername, validateUsername } from '../../lib/auth/types';
 
 /**
  * Second half of signup. A profile row already exists at this point; this
  * claims the @username, which is the identity everything social hangs off.
  */
 export function UsernameScreen() {
-  const { client, reload } = useAuth();
+  const { client, reload, user, profile } = useAuth();
   const [value, setValue] = useState('');
   const [available, setAvailable] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
@@ -17,6 +17,22 @@ export function UsernameScreen() {
 
   const normalized = value.trim().toLowerCase();
   const formatError = normalized ? validateUsername(normalized) : null;
+
+  // Offer the suggestion only if it is actually free. Prefilling a taken name
+  // would replace a blank field with an error, which is worse than blank.
+  useEffect(() => {
+    const candidate = suggestUsername(profile?.displayName ?? '', user?.email ?? '');
+    if (!candidate) return;
+    let live = true;
+    void client.isUsernameAvailable(candidate).then((free) => {
+      // Never overwrite typing that started while the check was in flight.
+      if (live && free) setValue((current) => (current === '' ? candidate : current));
+    });
+    return () => {
+      live = false;
+    };
+    // Runs once per sign-in; the field is the person's from then on.
+  }, [client, profile?.displayName, user?.email]);
 
   // Debounced availability check, so the field answers before submission.
   useEffect(() => {

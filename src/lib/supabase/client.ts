@@ -22,4 +22,8 @@ export const supabase: SupabaseClient | null =
 
 export const isSupabaseConfigured = supabase != null;
 
+/** The project's own URL and anon key, for the few calls that predate a session. */
+export const SUPABASE_URL = url ?? '';
+export const SUPABASE_ANON_KEY = anonKey ?? '';
+
 export const PHOTO_BUCKET = 'wing-photos';

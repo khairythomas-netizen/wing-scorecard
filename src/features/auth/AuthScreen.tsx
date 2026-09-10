@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { BrandLockup } from '../../components/Brand';
 import { useAuth } from '../../hooks/useAuth';
-import { friendlyAuthError } from '../../lib/auth/types';
+import { friendlyAuthError, type OAuthProvider } from '../../lib/auth/types';
+import { ProviderButton } from './ProviderButton';
 
 type Mode = 'signIn' | 'signUp';
 
@@ -14,6 +15,24 @@ export function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkEmail, setCheckEmail] = useState(false);
+  const [providers, setProviders] = useState<OAuthProvider[]>([]);
+
+  // Only offer the providers the project actually has configured, so a button
+  // on this screen always leads somewhere.
+  useEffect(() => {
+    let live = true;
+    client
+      .enabledProviders()
+      .then((list) => {
+        if (live) setProviders(list);
+      })
+      .catch(() => {
+        /* email sign-in is unaffected */
+      });
+    return () => {
+      live = false;
+    };
+  }, [client]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -33,6 +52,19 @@ export function AuthScreen() {
     } catch (err) {
       setError(friendlyAuthError(err instanceof Error ? err.message : String(err)));
     } finally {
+      setBusy(false);
+    }
+  };
+
+  const social = async (provider: OAuthProvider) => {
+    setError(null);
+    setBusy(true);
+    try {
+      // On success the browser leaves for the provider and never comes back
+      // to this line, so `busy` staying true is correct.
+      await client.signInWithProvider(provider);
+    } catch (err) {
+      setError(friendlyAuthError(err instanceof Error ? err.message : String(err)));
       setBusy(false);
     }
   };
@@ -69,7 +101,24 @@ export function AuthScreen() {
           : 'Create an account to save and share your reviews.'}
       </p>
 
-      <form onSubmit={submit} className="mt-6 space-y-3">
+      {providers.length > 0 && (
+        <>
+          <div className="mt-6 space-y-2.5">
+            {providers.map((p) => (
+              <ProviderButton key={p} provider={p} disabled={busy} onClick={() => social(p)} />
+            ))}
+          </div>
+          <div className="my-5 flex items-center gap-3">
+            <span className="h-px flex-1 bg-line" />
+            <span className="text-[11px] font-bold uppercase tracking-wide text-muted">
+              or use email
+            </span>
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </>
+      )}
+
+      <form onSubmit={submit} className={`${providers.length ? '' : 'mt-6 '}space-y-3`}>
         <label className="block">
           <span className="mb-1.5 ml-1 block text-[11px] font-bold text-muted">Email</span>
           <input

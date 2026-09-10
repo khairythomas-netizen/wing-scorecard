@@ -1,6 +1,22 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../supabase/client';
 import type { Profile } from '../types';
-import { AuthError, friendlyAuthError, type AuthClient, type AuthUser } from './types';
+import {
+  AuthError,
+  friendlyAuthError,
+  OAUTH_PROVIDERS,
+  type AuthClient,
+  type AuthUser,
+  type OAuthProvider,
+} from './types';
+
+/**
+ * Where the provider sends the browser back to. GitHub Pages serves the app
+ * under a sub-path, so origin alone would land on a 404.
+ */
+function redirectTarget(): string {
+  return new URL(import.meta.env.BASE_URL, window.location.origin).href;
+}
 
 /** Database row shape, which is snake_case unlike the app's Profile. */
 interface ProfileRow {
@@ -79,6 +95,31 @@ export function createSupabaseAuth(client: SupabaseClient): AuthClient {
 
     async signOut() {
       await client.auth.signOut();
+    },
+
+    async enabledProviders() {
+      // GoTrue publishes its own configuration unauthenticated. Reading it is
+      // how the sign-in screen knows which buttons are real.
+      try {
+        const res = await fetch(`${SUPABASE_URL}/auth/v1/settings`, {
+          headers: { apikey: SUPABASE_ANON_KEY },
+        });
+        if (!res.ok) return [];
+        const body = (await res.json()) as { external?: Record<string, boolean> };
+        return OAUTH_PROVIDERS.filter((p) => body.external?.[p] === true);
+      } catch {
+        // Offline, or the endpoint moved. Email sign-in still works, so fail
+        // quiet rather than blocking the screen on a nice-to-have.
+        return [];
+      }
+    },
+
+    async signInWithProvider(provider: OAuthProvider) {
+      const { error } = await client.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: redirectTarget() },
+      });
+      if (error) fail(error.message);
     },
 
     async isUsernameAvailable(username) {

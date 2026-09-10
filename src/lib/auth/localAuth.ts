@@ -56,6 +56,13 @@ export function createLocalAuth(): AuthClient {
     async signIn() {},
     async signOut() {},
 
+    // Demo mode signs in automatically, so there is nothing to offer and
+    // nowhere to send anyone.
+    async enabledProviders() {
+      return [];
+    },
+    async signInWithProvider() {},
+
     async isUsernameAvailable() {
       return true;
     },

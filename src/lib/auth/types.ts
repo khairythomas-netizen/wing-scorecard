@@ -19,6 +19,20 @@ export interface AuthState {
 export class AuthError extends Error {}
 
 /**
+ * Social sign-in providers WingZ offers. Deliberately a short list: each one
+ * has to be configured in the Supabase dashboard before it works, and a button
+ * that leads to "provider is not enabled" is worse than no button at all.
+ */
+export type OAuthProvider = 'google' | 'apple';
+
+export const OAUTH_PROVIDERS: readonly OAuthProvider[] = ['google', 'apple'];
+
+export const OAUTH_LABELS: Record<OAuthProvider, string> = {
+  google: 'Google',
+  apple: 'Apple',
+};
+
+/**
  * Authentication behind an interface, so the app runs unchanged with or
  * without a Supabase project attached. `localAuth` signs a demo user in
  * automatically; `supabaseAuth` does the real thing.
@@ -35,6 +49,16 @@ export interface AuthClient {
   signIn(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
 
+  /**
+   * Which social providers are actually turned on for this project. Asking the
+   * server rather than hard-coding a list means a provider appears the moment
+   * it is enabled in the dashboard, with no redeploy, and never appears while
+   * it would only fail.
+   */
+  enabledProviders(): Promise<OAuthProvider[]>;
+  /** Sends the browser to the provider. Resolves only if the redirect fails. */
+  signInWithProvider(provider: OAuthProvider): Promise<void>;
+
   isUsernameAvailable(username: string): Promise<boolean>;
   claimUsername(username: string): Promise<void>;
   updateProfile(
@@ -43,6 +67,22 @@ export interface AuthClient {
 }
 
 export const USERNAME_PATTERN = /^[a-z0-9_.]{3,30}$/;
+
+/**
+ * A first guess at a username, from whatever the person already gave us: a
+ * name from Google or Apple, otherwise the local part of their email. Signing
+ * in with Google and then being asked to invent a handle from nothing is a
+ * needless step when "sam.rivera" is sitting right there.
+ */
+export function suggestUsername(displayName: string, email: string): string {
+  const source = displayName.trim() || email.split('@')[0] || '';
+  const candidate = source
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '.')
+    .replace(/^\.+|\.+$/g, '')
+    .slice(0, 30);
+  return USERNAME_PATTERN.test(candidate) ? candidate : '';
+}
 
 export function validateUsername(raw: string): string | null {
   const name = raw.trim().toLowerCase();
@@ -69,6 +109,9 @@ export function friendlyAuthError(message: string): string {
     return 'Too many attempts. Try again in a few minutes.';
   }
   if (m.includes('taken')) return 'That username is taken.';
+  if (m.includes('provider is not enabled') || m.includes('unsupported provider')) {
+    return 'That sign-in method is not available yet.';
+  }
   if (m.includes('email not confirmed'))
     return 'Confirm your email first — check your inbox for the link.';
   // Network failures surface as bare fetch errors, which tell a user nothing.

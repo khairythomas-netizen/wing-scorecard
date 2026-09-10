@@ -23,15 +23,29 @@ drop index if exists profiles_username_unique;
 create unique index profiles_username_unique
   on profiles (lower(username)) where username is not null;
 
+-- Social sign-in hands us a name and a picture; email sign-up does not.
+-- Each provider spells those keys differently, so try every spelling rather
+-- than dropping the data and making the person retype what Google already
+-- told us. Username stays null: it is always claimed deliberately.
 create or replace function handle_new_user() returns trigger
 language plpgsql security definer set search_path = public as $$
+declare meta jsonb := coalesce(new.raw_user_meta_data, '{}'::jsonb);
 begin
   insert into public.profiles (id, username, display_name, avatar_url)
   values (
     new.id,
     null,
-    coalesce(new.raw_user_meta_data->>'display_name', ''),
-    coalesce(new.raw_user_meta_data->>'avatar_url', '')
+    coalesce(
+      nullif(meta->>'display_name', ''),
+      nullif(meta->>'full_name', ''),   -- Google, Apple
+      nullif(meta->>'name', ''),        -- Google
+      ''
+    ),
+    coalesce(
+      nullif(meta->>'avatar_url', ''),
+      nullif(meta->>'picture', ''),     -- Google
+      ''
+    )
   )
   on conflict (id) do nothing;
   return new;
