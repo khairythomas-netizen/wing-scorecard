@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Avatar } from '../../components/Avatar';
 import { useQuery, useStore } from '../../hooks/useStore';
 import { EmptyState, Spinner } from '../../components/States';
@@ -166,6 +166,13 @@ export function ProfileScreen({
         <RankingsScreen userId={userId} />
       ) : (
         <div className="mx-3 mt-3 overflow-hidden rounded-xl3 border border-line">
+          <Suspense
+            fallback={
+              <div className="grid h-[52vh] min-h-[360px] place-items-center bg-[var(--map)]">
+                <Spinner label="Loading map" />
+              </div>
+            }
+          >
           <Surface
             viewport={viewport}
             markers={reviews.flatMap((r) => {
@@ -184,6 +191,7 @@ export function ProfileScreen({
             onViewportChange={setViewport}
             className="h-[52vh] min-h-[360px]"
           />
+          </Suspense>
         </div>
       )}
     </div>

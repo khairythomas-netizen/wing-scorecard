@@ -1,15 +1,23 @@
-import { MapboxSurface } from './MapboxSurface';
-import { OsmMapSurface } from './OsmMapSurface';
+import { lazy } from 'react';
 import type { MapProvider } from './provider';
 
 /**
- * The single place that decides how the Discover map renders.
- * OpenStreetMap raster tiles by default; set VITE_MAPBOX_TOKEN for Mapbox.
+ * The Discover map.
+ *
+ * MapLibre GL over OpenFreeMap's vector tiles: a real map engine on a real
+ * tile service, with no API key. Setting VITE_MAPBOX_TOKEN switches the same
+ * component to Mapbox's styles.
+ *
+ * Loaded lazily because the engine is a few hundred kilobytes and only the
+ * Discover tab needs it — the rest of the app should not pay for it on launch.
  */
-const token = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
+const Surface = lazy(() =>
+  import('./MapLibreSurface').then((m) => ({ default: m.MapLibreSurface })),
+);
 
-export const mapProvider: MapProvider = token
-  ? { name: 'mapbox', Surface: MapboxSurface }
-  : { name: 'osm', Surface: OsmMapSurface };
+export const mapProvider: MapProvider = {
+  name: import.meta.env.VITE_MAPBOX_TOKEN ? 'mapbox' : 'maplibre',
+  Surface,
+};
 
 export * from './provider';

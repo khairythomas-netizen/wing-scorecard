@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Chip, ChipRow } from '../../components/Chip';
 import { HeatMeter } from '../../components/HeatMeter';
 import { ScoreBadge } from '../../components/ScoreBadge';
 import { IMAGE_WIDTHS, sized } from '../../lib/images';
+import { Spinner } from '../../components/States';
 import { useQuery, useStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
 import { mapProvider, type MapMarker, type MapViewport } from '../../lib/map';
@@ -128,17 +129,27 @@ export function MapMode({ theme }: { theme: Theme }) {
       </ChipRow>
 
       <div className="relative mx-3 overflow-hidden rounded-xl3 border border-line">
-        <Surface
-          viewport={viewport}
-          markers={markers}
-          theme={theme}
-          onMarkerClick={setSelected}
-          onViewportChange={(v) => {
-            userMoved.current = true;
-            setViewport(v);
-          }}
-          className="h-[58vh] min-h-[400px]"
-        />
+        {/* The map engine is lazy-loaded, so hold its space while it arrives
+            rather than collapsing the layout. */}
+        <Suspense
+          fallback={
+            <div className="grid h-[58vh] min-h-[400px] place-items-center bg-[var(--map)]">
+              <Spinner label="Loading map" />
+            </div>
+          }
+        >
+          <Surface
+            viewport={viewport}
+            markers={markers}
+            theme={theme}
+            onMarkerClick={setSelected}
+            onViewportChange={(v) => {
+              userMoved.current = true;
+              setViewport(v);
+            }}
+            className="h-[58vh] min-h-[400px]"
+          />
+        </Suspense>
 
         <div className="pointer-events-none absolute left-3 top-3 z-30 rounded-xl border border-line bg-[var(--glass)] px-3 py-2 backdrop-blur">
           {LEGEND.map(([label, cls]) => (
