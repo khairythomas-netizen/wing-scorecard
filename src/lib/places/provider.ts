@@ -30,6 +30,9 @@ export interface PlaceSuggestion {
   primaryText: string;
   /** "123 Ossington Ave, Toronto, ON" */
   secondaryText: string;
+  /** Present when the provider returns coordinates, for distance display. */
+  lat?: number;
+  lng?: number;
 }
 
 export interface LatLngBounds {

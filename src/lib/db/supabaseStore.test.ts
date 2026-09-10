@@ -242,3 +242,31 @@ describe('image URL sizing', () => {
     expect(sized(undefined, 900)).toBeUndefined();
   });
 });
+
+describe('map tile selection by zoom', () => {
+  it('uses the grey canvas where the canvas has data', async () => {
+    const { tileTemplateFor } = await import('../map/tiles');
+    for (const z of [3, 10, 15, 16]) {
+      expect(tileTemplateFor(z, 'dark')).toContain('World_Dark_Gray_Base');
+      expect(tileTemplateFor(z, 'light')).toContain('World_Light_Gray_Base');
+    }
+  });
+
+  it('switches to the street map past the canvas limit', async () => {
+    const { tileTemplateFor } = await import('../map/tiles');
+    // Above z16 the canvas serves a "Map data not yet available" placeholder,
+    // and upscaling z16 instead is what made deep zoom look blurry.
+    for (const z of [17, 18, 19]) {
+      expect(tileTemplateFor(z, 'dark')).toContain('World_Street_Map');
+      expect(tileTemplateFor(z, 'light')).toContain('World_Street_Map');
+    }
+  });
+
+  it('darkens the street map only in dark mode past the switch point', async () => {
+    const { needsDarkening } = await import('../map/tiles');
+    expect(needsDarkening(18, 'dark')).toBe(true);
+    expect(needsDarkening(18, 'light')).toBe(false);
+    // The canvas already matches the palette, so it must never be inverted.
+    expect(needsDarkening(14, 'dark')).toBe(false);
+  });
+});

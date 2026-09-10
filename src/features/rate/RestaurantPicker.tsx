@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { PinIcon } from '../../components/Icons';
 import { placesProvider, type PlaceSuggestion } from '../../lib/places';
+import {
+  distanceKm,
+  formatDistance,
+  lastKnownLocation,
+  requestLocation,
+  type Coords,
+} from '../../lib/location';
 import type { Place } from '../../lib/types';
 
 /**
@@ -20,6 +27,7 @@ export function RestaurantPicker({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [near, setNear] = useState<Coords | null>(lastKnownLocation);
   const seq = useRef(0);
 
   useEffect(() => {
@@ -32,7 +40,9 @@ export function RestaurantPicker({
     setError(null);
     const timer = window.setTimeout(async () => {
       try {
-        const results = await placesProvider.autocomplete(query);
+        // The bias is the difference between the Wingstop down the road
+        // and one in another country.
+        const results = await placesProvider.autocomplete(query, near ?? undefined);
         // Ignore a response that lost the race to a newer keystroke.
         if (id !== seq.current) return;
         setSuggestions(results);
@@ -45,7 +55,14 @@ export function RestaurantPicker({
       }
     }, 220);
     return () => window.clearTimeout(timer);
-  }, [query, value]);
+  }, [query, value, near]);
+
+  // Ask for a position the first time someone actually searches, rather than
+  // prompting on app launch for a permission most sessions never need.
+  const ensureLocation = () => {
+    if (near) return;
+    void requestLocation().then((c) => c && setNear(c));
+  };
 
   const pick = async (s: PlaceSuggestion) => {
     // Close first. If the provider is slow the dropdown must not sit open
@@ -91,7 +108,10 @@ export function RestaurantPicker({
           setQuery(e.target.value);
           setOpen(true);
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          setOpen(true);
+          ensureLocation();
+        }}
         placeholder="Search for a restaurant…"
         className="w-full rounded-xl2 border border-line bg-surface px-3.5 py-3 text-sm outline-none placeholder:text-muted focus:border-orange"
       />
@@ -102,6 +122,16 @@ export function RestaurantPicker({
             <p className="px-3.5 py-3 text-[12px] text-muted">Searching…</p>
           )}
           {error && <p className="px-3.5 py-3 text-[12px] font-semibold text-danger">{error}</p>}
+          {!near && !loading && suggestions.length > 0 && (
+            <button
+              type="button"
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => void requestLocation().then((c) => c && setNear(c))}
+              className="block w-full border-b border-line px-3.5 py-2 text-left text-[11px] font-semibold text-orange"
+            >
+              Use my location for nearby results
+            </button>
+          )}
           {!loading && !error && suggestions.length === 0 && (
             <p className="px-3.5 py-3 text-[12px] text-muted">
               No match. Try a shorter search, or include the city.
@@ -120,10 +150,15 @@ export function RestaurantPicker({
               className="flex w-full items-center gap-3 border-b border-line px-3.5 py-2.5 text-left last:border-0 hover:bg-surface2"
             >
               <PinIcon className="h-4 w-4 shrink-0 text-muted" />
-              <span className="min-w-0">
+              <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-bold">{s.primaryText}</span>
                 <span className="block truncate text-[11px] text-muted">{s.secondaryText}</span>
               </span>
+              {near && s.lat != null && s.lng != null && (
+                <span className="shrink-0 text-[10px] font-bold tabular-nums text-muted">
+                  {formatDistance(distanceKm(near, { lat: s.lat, lng: s.lng }))}
+                </span>
+              )}
             </button>
           ))}
         </div>

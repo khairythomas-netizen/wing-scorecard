@@ -95,7 +95,7 @@ export function createOsmPlacesProvider(): PlacesProvider {
       const q = text.trim();
       if (q.length < 2) return [];
 
-      const params = new URLSearchParams({ q, limit: '12' });
+      const params = new URLSearchParams({ q, limit: '20' });
       if (near) {
         // Bias, not restrict: someone reviewing a trip abroad still finds it.
         params.set('lat', String(near.lat));
@@ -109,7 +109,7 @@ export function createOsmPlacesProvider(): PlacesProvider {
       // or the user typed a mall or hotel. Retry unfiltered rather than
       // insisting the place does not exist.
       if (places.length === 0) {
-        const loose = new URLSearchParams({ q, limit: '12' });
+        const loose = new URLSearchParams({ q, limit: '20' });
         if (near) {
           loose.set('lat', String(near.lat));
           loose.set('lon', String(near.lng));
@@ -117,10 +117,20 @@ export function createOsmPlacesProvider(): PlacesProvider {
         places = await query(loose);
       }
 
+      // Photon biases but does not strictly order by distance, and for a chain
+      // the nearest branch is almost always the one meant.
+      if (near) {
+        const d = (p: Place) =>
+          (p.lat - near.lat) ** 2 + ((p.lng - near.lng) * Math.cos((near.lat * Math.PI) / 180)) ** 2;
+        places = [...places].sort((a, b) => d(a) - d(b));
+      }
+
       return places.map<PlaceSuggestion>((p) => ({
         externalId: p.externalId,
         primaryText: p.displayName,
         secondaryText: p.formattedAddress || [p.city, p.country].filter(Boolean).join(', '),
+        lat: p.lat,
+        lng: p.lng,
       }));
     },
 

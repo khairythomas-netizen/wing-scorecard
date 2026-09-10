@@ -2,6 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { MapMarker, MapSurfaceProps } from './provider';
+import {
+  ATTRIBUTION,
+  BASE_TILES,
+  USING_MAPTILER,
+  needsDarkening,
+  tileTemplateFor,
+} from './tiles';
 
 /**
  * The Discover map: Leaflet over CARTO's raster basemaps.
@@ -19,38 +26,19 @@ import type { MapMarker, MapSurfaceProps } from './provider';
  */
 
 /**
- * Tile source.
- *
- * Getting here took three attempts, so the reasoning is worth recording:
- *   - OpenStreetMap's own tile server now returns a "403 Access blocked" image
- *     for us. Their policy forbids application use of the volunteer servers.
- *   - CARTO returns HTTP 200 with a perfectly valid PNG that has "API KEY
- *     REQUIRED" printed across it. Checking the status code is not enough;
- *     these were verified by inspecting the pixels.
- *   - Esri's canvas basemaps serve clean tiles, keyless, with open CORS and
- *     both a dark and a light variant that suit the app's two themes.
- *
- * Setting VITE_MAPTILER_KEY switches to MapTiler, which is the right move
- * before this carries real traffic — a keyed provider gives a quota and terms
- * rather than depending on a public endpoint's goodwill.
+ * One layer that picks its service by zoom, rather than two layers fighting
+ * over visibility. Leaflet caches tiles per coordinate and zoom, so varying
+ * the URL per level is safe.
  */
-const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY as string | undefined;
-
-const ESRI = (variant: 'Dark' | 'Light') =>
-  `https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${variant}_Gray_Base/MapServer/tile/{z}/{y}/{x}`;
-
-const TILES = {
-  dark: MAPTILER_KEY
-    ? `https://api.maptiler.com/maps/dataviz-dark/{z}/{x}/{y}{r}.png?key=${MAPTILER_KEY}`
-    : ESRI('Dark'),
-  light: MAPTILER_KEY
-    ? `https://api.maptiler.com/maps/dataviz/{z}/{x}/{y}{r}.png?key=${MAPTILER_KEY}`
-    : ESRI('Light'),
-} as const;
-
-const ATTRIBUTION = MAPTILER_KEY
-  ? '&copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-  : 'Tiles &copy; <a href="https://www.esri.com">Esri</a>';
+const ZoomAwareTiles = L.TileLayer.extend({
+  getTileUrl(this: L.TileLayer & { _wingzTheme: 'dark' | 'light' }, coords: L.Coords) {
+    return L.Util.template(tileTemplateFor(coords.z, this._wingzTheme), {
+      ...coords,
+      s: '',
+      r: '',
+    });
+  },
+});
 
 const OWNER_COLOUR: Record<MapMarker['owner'], string> = {
   mine: 'var(--orange)',
@@ -105,15 +93,26 @@ export function LeafletSurface({
       inertia: true,
     });
 
-    const layer = L.tileLayer(TILES[theme], {
+    const layer = new (ZoomAwareTiles as unknown as typeof L.TileLayer)(BASE_TILES[theme], {
       attribution: ATTRIBUTION,
-      subdomains: MAPTILER_KEY ? 'abcd' : '',
-      // Esri's canvas basemaps have no imagery past z16; asking for more
-      // returns blanks. maxNativeZoom upscales instead of showing nothing.
+      subdomains: USING_MAPTILER ? 'abcd' : '',
       maxZoom: 19,
-      maxNativeZoom: MAPTILER_KEY ? 20 : 16,
-      detectRetina: Boolean(MAPTILER_KEY),
-    }).addTo(instance);
+      detectRetina: USING_MAPTILER,
+    });
+    (layer as L.TileLayer & { _wingzTheme: 'dark' | 'light' })._wingzTheme = theme;
+    layer.addTo(instance);
+
+    // The street map is a full-colour basemap. In dark mode, past the canvas
+    // zoom, invert it so it still reads as part of a dark UI.
+    const applyDeepZoomFilter = () => {
+      const pane = instance.getPane('tilePane');
+      if (!pane) return;
+      const themeNow = instance.getContainer().dataset.theme === 'dark' ? 'dark' : 'light';
+      pane.style.filter = needsDarkening(instance.getZoom(), themeNow)
+        ? 'invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.95)'
+        : '';
+    };
+    instance.on('zoomend', applyDeepZoomFilter);
 
     // A tile 404 at the edge of coverage is normal; a wholesale failure is not.
     let tileErrors = 0;
@@ -138,6 +137,9 @@ export function LeafletSurface({
     ro.observe(container.current);
     requestAnimationFrame(() => instance.invalidateSize());
 
+    instance.getContainer().dataset.theme = theme;
+    applyDeepZoomFilter();
+
     map.current = instance;
     tileLayer.current = layer;
     return () => {
@@ -151,7 +153,14 @@ export function LeafletSurface({
   }, []);
 
   useEffect(() => {
-    tileLayer.current?.setUrl(TILES[theme]);
+    const layer = tileLayer.current as (L.TileLayer & { _wingzTheme: 'dark' | 'light' }) | null;
+    const instance = map.current;
+    if (!layer || !instance) return;
+    layer._wingzTheme = theme;
+    instance.getContainer().dataset.theme = theme;
+    layer.setUrl(BASE_TILES[theme], false);
+    // Re-evaluate the deep-zoom filter, which depends on the theme.
+    instance.fire('zoomend');
   }, [theme]);
 
   useEffect(() => {
