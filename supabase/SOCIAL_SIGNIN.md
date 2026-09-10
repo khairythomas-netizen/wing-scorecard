@@ -1,4 +1,6 @@
-# Turning on Google and Apple sign-in
+# Google and Apple sign-in
+
+Google is set up and live. Apple is not, and section 2 is what it would take.
 
 The app already has the buttons. It asks Supabase which providers are switched
 on and shows only those, so nothing here needs a code change or a redeploy —
@@ -26,29 +28,34 @@ In **Supabase → Authentication → URL Configuration**:
   - `https://khairythomas-netizen.github.io/wing-scorecard/`
   - `http://localhost:5273/wing-scorecard/`
 
-## 1. Google
+## 1. Google — done
 
-Free. About ten minutes.
+Live since 10 September 2026. Nothing to do here unless something breaks.
 
-1. Open the [Google Cloud Console](https://console.cloud.google.com/) and
-   create a project called WingZ.
-2. **APIs & Services → OAuth consent screen**. Choose **External**. Fill in the
-   app name, your support email and developer contact email. The default
-   scopes (`email`, `profile`, `openid`) are all that is needed.
-3. While the consent screen sits in **Testing**, only accounts you add under
-   *Test users* can sign in. Press **Publish app** when you want it open to
-   everyone. Google does not review an app that asks only for email and
-   profile, so publishing is immediate.
-4. **APIs & Services → Credentials → Create credentials → OAuth client ID**,
-   type **Web application**.
-   - *Authorised JavaScript origins*: `https://khairythomas-netizen.github.io`
-     and `http://localhost:5273`
-   - *Authorised redirect URIs*: the Supabase callback URL from the table above
-5. Copy the **Client ID** and **Client secret**.
-6. **Supabase → Authentication → Sign In / Providers → Google**: enable it,
-   paste both values, save.
+| | |
+| --- | --- |
+| Google Cloud project | `wingz-508210`, named WingZ |
+| OAuth client | `WingZ Web` |
+| Publishing status | In production, so anyone with a Google account can sign in |
+| User support email | `khairythomas@gmail.com` |
+| Developer contact | `wingz_app@outlook.com` |
 
-Reload the app. "Continue with Google" is there.
+Two things to know about how it looks and behaves.
+
+Google's sign-in page says "to continue to
+`kukhjyecluksittmfyyi.supabase.co`" rather than "to continue to WingZ".
+That is Supabase brokering the OAuth handshake, so Google shows Supabase's
+hostname. The cure is a Supabase custom domain, which is a paid add-on.
+
+The user support email is shown publicly on that screen. Google only accepts
+the signed-in Google account or a Google Group, which is why it is a personal
+Gmail rather than the project's Outlook address. Change it under **Branding**
+if `wingz_app` ever becomes a Google account or a Group.
+
+If Google sign-in ever stops working, check these in order: the client's
+authorised redirect URI still matches the Supabase callback, the publishing
+status is still In production, and the privacy and terms pages still return
+200. Google unpublishes apps whose policy links go dead.
 
 ## 2. Apple
 
