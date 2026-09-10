@@ -1,5 +1,11 @@
 import type { Place } from '../types';
-import { normalizeName, type LatLngBounds, type PlaceSuggestion, type PlacesProvider } from './provider';
+import {
+  normalizeName,
+  type GeocodedAddress,
+  type LatLngBounds,
+  type PlaceSuggestion,
+  type PlacesProvider,
+} from './provider';
 
 /**
  * OpenStreetMap-backed place search via Photon.
@@ -138,31 +144,49 @@ export function createOsmPlacesProvider(): PlacesProvider {
       return seen.get(externalId) ?? null;
     },
 
-    async geocodeAddress(address) {
-      const q = address.trim();
-      if (q.length < 5) return null;
-      // Nominatim resolves street addresses better than Photon does, even for
+    async searchAddresses(query, near) {
+      const q = query.trim();
+      if (q.length < 4) return [];
+      // Nominatim resolves street addresses better than Photon, including
       // buildings with no named business in them.
       const params = new URLSearchParams({
         q,
         format: 'jsonv2',
-        limit: '1',
+        limit: '6',
         addressdetails: '1',
       });
+      if (near) {
+        // A viewbox biases without excluding: bounded=0 keeps far matches.
+        const d = 0.6;
+        params.set('viewbox', `${near.lng - d},${near.lat + d},${near.lng + d},${near.lat - d}`);
+        params.set('bounded', '0');
+      }
       const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`);
-      if (!res.ok) return null;
+      if (!res.ok) return [];
       const rows = (await res.json()) as {
         lat: string;
         lon: string;
         display_name: string;
+        address?: Record<string, string>;
       }[];
-      const hit = rows[0];
-      if (!hit) return null;
-      return {
-        lat: Number(hit.lat),
-        lng: Number(hit.lon),
-        formatted: hit.display_name,
-      };
+
+      return rows.map<GeocodedAddress>((r) => {
+        const a = r.address ?? {};
+        return {
+          formatted: r.display_name,
+          lat: Number(r.lat),
+          lng: Number(r.lon),
+          // A geocoder puts the settlement under whichever of these applies.
+          city: a.city || a.town || a.village || a.municipality || a.suburb || a.county || '',
+          region: a.state || a.province || '',
+          country: a.country || '',
+        };
+      });
+    },
+
+    async geocodeAddress(address) {
+      const [first] = await this.searchAddresses(address);
+      return first ?? null;
     },
 
     async nearby(bounds: LatLngBounds) {

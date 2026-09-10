@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { toProfile } from '../auth/supabaseAuth';
+import { buildCityList, placeIsInCity } from '../cities';
+import { distanceKm } from '../location';
+import { placesProvider } from '../places';
+import { filterUnseen, interleave, type SwipeCard } from './swipe';
 import { prepareImage } from '../images';
 import { normalizeName } from '../places/provider';
 import { calculateScore, round1 } from '../scoring';
@@ -444,8 +448,18 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
     },
 
     async listCities() {
-      const { data } = await client.from('places').select('city').not('city', 'eq', '');
-      return [...new Set((data ?? []).map((p) => (p as { city: string }).city))].sort();
+      // Only cities holding reviews are useful, so count reviews per place and
+      // let buildCityList drop the rest.
+      const [{ data: places }, { data: reviews }] = await Promise.all([
+        client.from('places').select('id, city, region, country'),
+        client.from('reviews').select('place_id'),
+      ]);
+      const counts = new Map<string, number>();
+      (reviews ?? []).forEach((r) => {
+        const id = (r as { place_id: string }).place_id;
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+      });
+      return buildCityList((places ?? []) as never, counts);
     },
 
     async createReview(draft) {
@@ -654,6 +668,101 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
       return hydrateAll((data ?? []) as never);
     },
 
+    async swipeDeck(near) {
+      const uid = me();
+
+      // Friends' posts: the social half of the deck.
+      const friendItems = (await this.feed()).filter((f) => f.review.authorId !== uid);
+      const friendCards: SwipeCard[] = friendItems.map((f) => ({
+        kind: 'friend',
+        id: `friend:${f.review.id}`,
+        place: f.place,
+        distanceKm: near ? distanceKm(near, { lat: f.place.lat, lng: f.place.lng }) : null,
+        photoUrl: f.review.photos[0]?.url ?? null,
+        review: f.review,
+        author: f.author,
+        flavour: f.flavour,
+        wantToTry: f.wantToTry,
+      }));
+
+      let nearbyCards: SwipeCard[] = [];
+      if (near) {
+        // Roughly a 25 km box; a degree of latitude is about 111 km.
+        const d = 0.22;
+        let found: Place[] = [];
+        try {
+          found = await placesProvider.nearby({
+            north: near.lat + d,
+            south: near.lat - d,
+            east: near.lng + d,
+            west: near.lng - d,
+          });
+        } catch {
+          found = [];
+        }
+        if (found.length) {
+          // One round trip for whatever WingZ already knows about these
+          // places, rather than a query per card.
+          const names = found.map((p) => p.normalizedName);
+          const { data: known } = await client
+            .from('places')
+            .select('id, normalized_name, reviews(final_score, heat, author_id, photos:review_photos(url), flavour:wing_flavours(name))')
+            .in('normalized_name', names);
+
+          const byName = new Map<string, { rows: Record<string, unknown>[]; id: string }>();
+          (known ?? []).forEach((row) => {
+            const r = row as unknown as { id: string; normalized_name: string; reviews: Record<string, unknown>[] };
+            byName.set(r.normalized_name, { rows: r.reviews ?? [], id: r.id });
+          });
+
+          const wtt = new Set(
+            (await this.listWantToTry()).map((w) => w.place.normalizedName),
+          );
+
+          nearbyCards = found
+            .map((place) => {
+              const hit = byName.get(place.normalizedName);
+              const rows = hit?.rows ?? [];
+              const scores = rows.map((r) => Number((r as { final_score: string }).final_score));
+              const heats = rows.map((r) => Number((r as { heat: number }).heat));
+              const photo = rows
+                .flatMap((r) => (r as { photos?: { url: string }[] }).photos ?? [])
+                .map((p) => p.url)[0] ?? null;
+              const flavour =
+                (rows[0] as { flavour?: { name: string } } | undefined)?.flavour?.name ?? null;
+              const mine = rows.some(
+                (r) => (r as { author_id: string }).author_id === uid,
+              );
+              return {
+                card: {
+                  kind: 'nearby' as const,
+                  id: `nearby:${place.id}`,
+                  place,
+                  distanceKm: distanceKm(near, { lat: place.lat, lng: place.lng }),
+                  photoUrl: photo,
+                  communityScore: scores.length
+                    ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
+                    : null,
+                  communityHeat: heats.length
+                    ? Math.round((heats.reduce((a, b) => a + b, 0) / heats.length) * 10) / 10
+                    : null,
+                  reviewCount: rows.length,
+                  topFlavour: flavour,
+                  wantToTry: wtt.has(place.normalizedName),
+                },
+                mine,
+              };
+            })
+            // Somewhere already reviewed by this user is not a discovery.
+            .filter((x) => !x.mine)
+            .map((x) => x.card)
+            .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
+        }
+      }
+
+      return filterUnseen(interleave(nearbyCards, friendCards));
+    },
+
     async toggleLike(reviewId) {
       const uid = me();
       if (!uid) return false;
@@ -795,7 +904,7 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
 
       // City lives on the joined place, and component sorts read a column on
       // review_scores, so both are applied after the fetch.
-      if (filters.city) items = items.filter((i) => i.place.city === filters.city);
+      if (filters.city) items = items.filter((i) => placeIsInCity(i.place, filters.city!));
       const key = filters.sortBy ?? 'final';
       if (key !== 'final') {
         items.sort((a, b) => b.review.scores[key] - a.review.scores[key]);

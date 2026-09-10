@@ -128,7 +128,7 @@ export function MapMode({ theme }: { theme: Theme }) {
         ))}
       </ChipRow>
 
-      <div className="relative mx-3 overflow-hidden rounded-xl3 border border-line">
+      <div className="relative mx-3 overflow-hidden rounded-xl3 border border-line shadow-card">
         {/* The map engine is lazy-loaded, so hold its space while it arrives
             rather than collapsing the layout. */}
         <Suspense
@@ -147,29 +147,35 @@ export function MapMode({ theme }: { theme: Theme }) {
               userMoved.current = true;
               setViewport(v);
             }}
-            className="h-[58vh] min-h-[400px]"
+            className="h-[62vh] min-h-[440px]"
           />
         </Suspense>
 
-        <div className="pointer-events-none absolute left-3 top-3 z-30 rounded-xl border border-line bg-[var(--glass)] px-3 py-2 backdrop-blur">
+        {/* A compact horizontal key: the old stacked block ate a corner of
+            the map on a phone. */}
+        <div className="pointer-events-none absolute left-2 top-2 z-[600] flex flex-wrap gap-x-2.5 gap-y-1 rounded-full border border-line bg-[var(--glass)] px-2.5 py-1.5 backdrop-blur">
           {LEGEND.map(([label, cls]) => (
-            <div key={label} className="flex items-center gap-1.5 text-[10px] font-semibold">
-              <span className={`h-2 w-2 rounded-full ${cls}`} />
+            <span key={label} className="flex items-center gap-1 text-[9px] font-bold text-muted">
+              <span className={`h-1.5 w-1.5 rounded-full ${cls}`} />
               {label}
-            </div>
+            </span>
           ))}
         </div>
 
         {detail && (
-          <div className="animate-rise absolute inset-x-2 bottom-2 z-40 rounded-xl2 border border-line bg-[var(--glass)] p-3 backdrop-blur-xl">
+          <div className="animate-rise absolute inset-x-2 bottom-2 z-[600] rounded-xl3 border border-line bg-[var(--glass)] p-3 shadow-card backdrop-blur-xl">
             <div className="flex gap-3">
-              {detail.photoUrl && (
+              {detail.photoUrl ? (
                 <img
                   src={sized(detail.photoUrl, IMAGE_WIDTHS.thumb)}
                   alt=""
                   loading="lazy"
-                  className="h-20 w-20 shrink-0 rounded-xl object-cover"
+                  className="h-20 w-20 shrink-0 rounded-xl2 bg-surface2 object-cover"
                 />
+              ) : (
+                <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl2 bg-surface2 text-2xl">
+                  🍗
+                </div>
               )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-extrabold">{detail.place.displayName}</p>

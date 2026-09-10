@@ -5,7 +5,11 @@ import {
   SEED_PLACES,
   SEED_PROFILES,
 } from '../../data/seed';
+import { buildCityList, placeIsInCity } from '../cities';
+import { placesProvider } from '../places';
 import { normalizeName } from '../places/provider';
+import { distanceKm } from '../location';
+import { filterUnseen, interleave, type SwipeCard } from './swipe';
 import { calculateScore, round1, type BonusEntry } from '../scoring';
 import type {
   Aggregate,
@@ -288,6 +292,23 @@ export function createLocalStore(): WingzStore {
     return created;
   }
 
+  /** Aggregates for a place, used to dress a nearby swipe card. */
+  function statsForPlace(place: Place) {
+    const rows = db.reviews.filter((r) => r.placeId === place.id);
+    const counts = new Map<ID, number>();
+    rows.forEach((r) => counts.set(r.flavourId, (counts.get(r.flavourId) ?? 0) + 1));
+    const topId = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    return {
+      reviewCount: rows.length,
+      avgFinal: rows.length ? round1(rows.reduce((a, r) => a + r.finalScore, 0) / rows.length) : null,
+      avgHeat: rows.length ? round1(rows.reduce((a, r) => a + r.heat, 0) / rows.length) : null,
+      photoUrl: rows[0]?.photos[0]?.url ?? null,
+      topFlavour: topId ? (flavourOf(topId)?.name ?? null) : null,
+      wantToTry: db.wantToTry.some((w) => w.userId === me() && w.placeId === place.id),
+      reviewedByMe: rows.some((r) => r.authorId === me()),
+    };
+  }
+
   return {
     name: 'local',
     currentUserId: () => currentUser,
@@ -421,7 +442,9 @@ export function createLocalStore(): WingzStore {
     },
 
     async listCities() {
-      return [...new Set(db.places.map((p) => p.city))].filter(Boolean).sort();
+      const counts = new Map<ID, number>();
+      db.reviews.forEach((r) => counts.set(r.placeId, (counts.get(r.placeId) ?? 0) + 1));
+      return buildCityList(db.places, counts);
     },
 
     async createReview(draft) {
@@ -533,11 +556,75 @@ export function createLocalStore(): WingzStore {
       return db.reviews.filter((r) => following.has(r.authorId)).sort(byNewest).map(hydrate);
     },
 
+    /** Everything the deck needs to know about a place, in one pass. */
     async publicPosts() {
       return visibleReviews()
         .filter((r) => r.visibility === 'public' && r.authorId !== me())
         .sort(byNewest)
         .map(hydrate);
+    },
+
+
+    async swipeDeck(near) {
+      const uid = me();
+      const following = new Set(await followingIds());
+
+      // --- friends' posts -------------------------------------------------
+      const friendItems = (await this.feed()).filter(
+        (f) => f.review.authorId !== uid && following.has(f.review.authorId),
+      );
+      const friendCards: SwipeCard[] = friendItems.map((f) => ({
+        kind: 'friend',
+        id: `friend:${f.review.id}`,
+        place: f.place,
+        distanceKm: near ? distanceKm(near, { lat: f.place.lat, lng: f.place.lng }) : null,
+        photoUrl: f.review.photos[0]?.url ?? null,
+        review: f.review,
+        author: f.author,
+        flavour: f.flavour,
+        wantToTry: f.wantToTry,
+      }));
+
+      // --- nearby wing places ---------------------------------------------
+      let nearbyCards: SwipeCard[] = [];
+      if (near) {
+        // A degree of latitude is ~111 km; this box is roughly 25 km.
+        const d = 0.22;
+        let found: Place[] = [];
+        try {
+          found = await placesProvider.nearby({
+            north: near.lat + d,
+            south: near.lat - d,
+            east: near.lng + d,
+            west: near.lng - d,
+          });
+        } catch {
+          // Discovery is best-effort; friends' posts still make a deck.
+          found = [];
+        }
+
+        nearbyCards = found
+          .map((place) => {
+            const stats = statsForPlace(place);
+            return {
+              kind: 'nearby' as const,
+              id: `nearby:${place.id}`,
+              place,
+              distanceKm: distanceKm(near, { lat: place.lat, lng: place.lng }),
+              photoUrl: stats.photoUrl,
+              communityScore: stats.avgFinal,
+              communityHeat: stats.avgHeat,
+              reviewCount: stats.reviewCount,
+              topFlavour: stats.topFlavour,
+              wantToTry: stats.wantToTry,
+            };
+          })
+          // Somewhere the user has already reviewed is not a discovery.
+          .filter((c) => !statsForPlace(c.place).reviewedByMe)
+          .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
+      }
+
+      return filterUnseen(interleave(nearbyCards, friendCards));
     },
 
     async toggleLike(reviewId) {
@@ -637,7 +724,12 @@ export function createLocalStore(): WingzStore {
       if (filters.maxHeat != null) rows = rows.filter((r) => r.heat <= filters.maxHeat!);
       if (filters.minScore != null) rows = rows.filter((r) => r.finalScore >= filters.minScore!);
       if (filters.flavourId) rows = rows.filter((r) => r.flavourId === filters.flavourId);
-      if (filters.city) rows = rows.filter((r) => placeOf(r.placeId)?.city === filters.city);
+      if (filters.city) {
+        rows = rows.filter((r) => {
+          const place = placeOf(r.placeId);
+          return place != null && placeIsInCity(place, filters.city!);
+        });
+      }
 
       const key = filters.sortBy ?? 'final';
       const pick = (r: Review) => (key === 'final' ? r.finalScore : r.scores[key]);

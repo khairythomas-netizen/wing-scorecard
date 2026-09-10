@@ -151,8 +151,10 @@ describe('rankings', () => {
     expect(rows.every((r) => r.review.heat >= 4)).toBe(true);
   });
 
-  it('filters by city', async () => {
-    const rows = await store.rankings({ scope: 'global', city: 'New York' });
+  it('filters by city, keyed on canonical identity rather than a raw string', async () => {
+    const cities = await store.listCities();
+    const ny = cities.find((c) => c.label.startsWith('New York'))!;
+    const rows = await store.rankings({ scope: 'global', city: ny.key });
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.every((r) => r.place.city === 'New York')).toBe(true);
   });
@@ -562,5 +564,72 @@ describe('changing the restaurant on an existing review', () => {
       owner: 'mine', minHeat: 1, maxHeat: 5, minScore: 0, flavourId: null,
     });
     expect(pins.some((p) => p.place.displayName === 'Bird Bar')).toBe(true);
+  });
+});
+
+describe('city filtering', () => {
+  it('lists only cities that actually hold reviews', async () => {
+    const cities = await store.listCities();
+    expect(cities.length).toBeGreaterThan(0);
+    expect(cities.every((c) => c.count > 0)).toBe(true);
+    // Northside Wings is seeded but its city must not appear twice.
+    const labels = cities.map((c) => c.label);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it('orders by how much data each city has', async () => {
+    const counts = (await store.listCities()).map((c) => c.count);
+    expect([...counts].sort((a, b) => b - a)).toEqual(counts);
+  });
+
+  it('collapses the same city written with different region spellings', async () => {
+    const { buildCityList } = await import('../cities');
+    const places = [
+      { id: 'a', city: 'Toronto', region: 'Ontario', country: 'Canada' },
+      { id: 'b', city: 'Toronto', region: 'ON', country: 'Canada' },
+      { id: 'c', city: 'toronto', region: '', country: 'Canada' },
+    ];
+    const cities = buildCityList(places, new Map([['a', 2], ['b', 3], ['c', 1]]));
+    expect(cities).toHaveLength(1);
+    expect(cities[0]!.label).toBe('Toronto');
+    expect(cities[0]!.count).toBe(6);
+  });
+
+  it('drops places that have no reviews', async () => {
+    const { buildCityList } = await import('../cities');
+    const cities = buildCityList(
+      [
+        { id: 'a', city: 'Toronto', region: 'ON', country: 'Canada' },
+        { id: 'b', city: 'Nowhere', region: '', country: 'Canada' },
+      ],
+      new Map([['a', 1]]),
+    );
+    expect(cities.map((c) => c.label)).toEqual(['Toronto']);
+  });
+
+  it('disambiguates only genuinely ambiguous names', async () => {
+    const { buildCityList } = await import('../cities');
+    const cities = buildCityList(
+      [
+        { id: 'a', city: 'London', region: 'England', country: 'United Kingdom' },
+        { id: 'b', city: 'London', region: 'ON', country: 'Canada' },
+        { id: 'c', city: 'Toronto', region: 'ON', country: 'Canada' },
+      ],
+      new Map([['a', 1], ['b', 1], ['c', 1]]),
+    );
+    const labels = cities.map((c) => c.label).sort();
+    expect(labels).toContain('London, UK');
+    expect(labels).toContain('London, Canada');
+    // Toronto is unique, so it stays unqualified.
+    expect(labels).toContain('Toronto');
+  });
+
+  it('ignores places with no city at all', async () => {
+    const { buildCityList } = await import('../cities');
+    const cities = buildCityList(
+      [{ id: 'a', city: '', region: 'ON', country: 'Canada' }],
+      new Map([['a', 5]]),
+    );
+    expect(cities).toEqual([]);
   });
 });

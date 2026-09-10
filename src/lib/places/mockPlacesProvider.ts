@@ -32,11 +32,24 @@ export const mockPlacesProvider: PlacesProvider = {
     return latency(SEED_PLACES.find((p) => p.externalId === externalId) ?? null);
   },
 
+  async searchAddresses(query) {
+    const q = normalizeName(query);
+    if (q.length < 4) return [];
+    return SEED_PLACES.filter((p) => normalizeName(p.formattedAddress).includes(q))
+      .slice(0, 6)
+      .map((p) => ({
+        formatted: p.formattedAddress,
+        lat: p.lat,
+        lng: p.lng,
+        city: p.city,
+        region: p.region,
+        country: p.country,
+      }));
+  },
+
   async geocodeAddress(address) {
-    const hit = SEED_PLACES.find((p) =>
-      normalizeName(p.formattedAddress).includes(normalizeName(address)),
-    );
-    return hit ? { lat: hit.lat, lng: hit.lng, formatted: hit.formattedAddress } : null;
+    const [first] = await this.searchAddresses(address);
+    return first ?? null;
   },
 
   async nearby(bounds: LatLngBounds) {

@@ -29,7 +29,24 @@ export interface PlacesProvider {
    * dataset, and a wing app hits that constantly — so a user must be able to
    * add one rather than be told it does not exist.
    */
-  geocodeAddress(address: string): Promise<{ lat: number; lng: number; formatted: string } | null>;
+  geocodeAddress(address: string): Promise<GeocodedAddress | null>;
+
+  /**
+   * Address type-ahead for adding a place by hand, so the user picks a real
+   * recognised address rather than typing arbitrary text. Returning full
+   * candidates means the chosen one already carries coordinates and a parsed
+   * city, and the pin is correct the moment the restaurant is created.
+   */
+  searchAddresses(query: string, near?: { lat: number; lng: number }): Promise<GeocodedAddress[]>;
+}
+
+export interface GeocodedAddress {
+  formatted: string;
+  lat: number;
+  lng: number;
+  city: string;
+  region: string;
+  country: string;
 }
 
 export interface PlaceSuggestion {

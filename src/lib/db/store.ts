@@ -1,3 +1,5 @@
+import type { City } from '../cities';
+import type { SwipeCard } from './swipe';
 import type {
   Aggregate,
   Comment,
@@ -64,6 +66,7 @@ export interface RankingFilters {
   maxHeat?: number;
   minScore?: number;
   flavourId?: ID | null;
+  /** Canonical city key from buildCityList, not a raw string. */
   city?: string | null;
   /** Which component to rank on. 'final' is the default overall ranking. */
   sortBy?: 'final' | 'cook' | 'flavour' | 'value' | 'sauce';
@@ -126,7 +129,8 @@ export interface WingzStore {
   rejectFollowRequest(requestId: ID): Promise<void>;
 
   getFlavours(): Promise<WingFlavour[]>;
-  listCities(): Promise<string[]>;
+  /** Cities that actually hold reviews, most active first. */
+  listCities(): Promise<City[]>;
 
   createReview(draft: DraftReview): Promise<Review>;
   /** Author-only. Photos and restaurant are not editable. */
@@ -139,6 +143,12 @@ export interface WingzStore {
   feed(): Promise<FeedItem[]>;
   /** Public posts from other people, for swipe discovery. */
   publicPosts(): Promise<FeedItem[]>;
+
+  /**
+   * The swipe deck: wing places near the user, mixed with posts from people
+   * they follow. Ordered by proximity, with already-swiped cards excluded.
+   */
+  swipeDeck(near: { lat: number; lng: number } | null): Promise<SwipeCard[]>;
 
   toggleLike(reviewId: ID): Promise<boolean>;
   toggleSave(reviewId: ID): Promise<boolean>;

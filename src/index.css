@@ -200,3 +200,58 @@ body * {
 .animate-rise {
   animation: wingz-rise 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
+
+
+/* --- Map -------------------------------------------------------------- */
+
+/* Leaflet's chrome is built for desktop; soften it to match the app. */
+.leaflet-container {
+  background: var(--map);
+  font-family: inherit;
+}
+
+.leaflet-control-zoom,
+.leaflet-bar {
+  border: 1px solid var(--line) !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.18) !important;
+}
+
+.leaflet-control-zoom a,
+.leaflet-bar a {
+  background: var(--glass) !important;
+  color: var(--text) !important;
+  border-bottom-color: var(--line) !important;
+  backdrop-filter: blur(12px);
+  width: 34px !important;
+  height: 34px !important;
+  line-height: 34px !important;
+  font-size: 18px !important;
+}
+
+.leaflet-control-zoom a:hover,
+.leaflet-bar a:hover {
+  background: var(--surface2) !important;
+}
+
+.leaflet-control-attribution {
+  background: var(--glass) !important;
+  color: var(--muted) !important;
+  border-radius: 8px 0 0 0;
+  font-size: 9px !important;
+  padding: 2px 6px !important;
+  backdrop-filter: blur(8px);
+}
+
+.leaflet-control-attribution a {
+  color: var(--muted) !important;
+}
+
+/* A selected pin should sit above its neighbours. */
+.wingz-pin {
+  transition: transform 0.16s ease-out;
+}
+.wingz-pin:active {
+  transform: scale(0.94);
+}

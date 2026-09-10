@@ -48,20 +48,38 @@ const OWNER_COLOUR: Record<MapMarker['owner'], string> = {
   wantToTry: 'var(--violet)',
 };
 
-/** WingZ's own pin, so ownership colour and score survive the engine swap. */
+/**
+ * WingZ's own pin. Drawn as a teardrop with a separate shadow ellipse so it
+ * reads as sitting on the map rather than floating over it, and grows when
+ * selected so the tapped pin is unmistakable.
+ */
 function pinIcon(m: MapMarker): L.DivIcon {
   const colour = OWNER_COLOUR[m.owner];
   const text = m.owner === 'community' ? 'var(--text)' : '#fff';
+  const scale = m.selected ? 1.15 : 1;
+  const size = 40 * scale;
+
   return L.divIcon({
-    className: '',
-    html: `<span data-marker style="
-        display:grid;place-items:center;width:42px;height:42px;
-        border:2px solid rgba(255,255,255,.92);border-radius:50% 50% 50% 12%;
-        transform:rotate(-45deg);box-shadow:0 4px 12px rgba(0,0,0,.4);
-        background:${colour};color:${text};font-weight:900;font-size:11px;
-      "><span style="transform:rotate(45deg)">${m.label}</span></span>`,
-    iconSize: [42, 42],
-    iconAnchor: [21, 42],
+    className: 'wingz-pin',
+    html: `
+      <span data-marker style="position:relative;display:block;width:${size}px;height:${size + 8}px;">
+        <span style="
+          position:absolute;left:50%;bottom:0;transform:translateX(-50%);
+          width:${size * 0.42}px;height:${size * 0.16}px;border-radius:50%;
+          background:rgba(0,0,0,.28);filter:blur(1.5px);
+        "></span>
+        <span style="
+          position:absolute;top:0;left:0;display:grid;place-items:center;
+          width:${size}px;height:${size}px;
+          border:2.5px solid #fff;border-radius:50% 50% 50% 12%;
+          transform:rotate(-45deg);
+          background:${colour};color:${text};
+          box-shadow:0 3px 10px rgba(0,0,0,.35);
+          font-weight:900;font-size:${11 * scale}px;
+        "><span style="transform:rotate(45deg);letter-spacing:-.02em">${m.label}</span></span>
+      </span>`,
+    iconSize: [size, size + 8],
+    iconAnchor: [size / 2, size + 8],
   });
 }
 

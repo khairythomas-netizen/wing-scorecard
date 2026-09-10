@@ -1,38 +1,53 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Avatar } from '../../components/Avatar';
 import { HeatMeter } from '../../components/HeatMeter';
-import { CloseIcon, HeartIcon } from '../../components/Icons';
+import { CloseIcon, HeartIcon, PinIcon } from '../../components/Icons';
+import { Spinner } from '../../components/States';
 import { useQuery, useStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
+import { markSwiped, resetSwiped, type SwipeCard } from '../../lib/db/swipe';
 import { formatPrice } from '../../lib/format';
 import { IMAGE_WIDTHS, sized } from '../../lib/images';
+import { formatDistance, lastKnownLocation, requestLocation, type Coords } from '../../lib/location';
 import { formatScore } from '../../lib/scoring';
-import { Spinner } from '../../components/States';
-import type { FeedItem } from '../../lib/types';
 
 /**
- * Swiping right saves that exact restaurant AND flavour to Want to Try, which
- * is what makes the list useful later — "Bird Bar" alone would lose the reason
- * the card was appealing in the first place.
+ * Swipe discovery.
+ *
+ * Two things mixed: wing places near the user, and posts from people they
+ * follow. Proximity leads — the point is finding somewhere to eat tonight —
+ * and swiped cards are remembered so the deck moves on rather than looping.
  */
 export function SwipeMode() {
   const store = useStore();
   const toast = useToast();
-  const poolQuery = useQuery([], (s) => s.publicPosts());
-  const pool = useMemo(() => poolQuery.data ?? [], [poolQuery.data]);
+  const [near, setNear] = useState<Coords | null>(lastKnownLocation);
+  const [askedForLocation, setAskedForLocation] = useState(false);
   const [cursor, setCursor] = useState(0);
   const [drag, setDrag] = useState(0);
   const [exiting, setExiting] = useState<'left' | 'right' | null>(null);
   const start = useRef<number | null>(null);
 
-  const deck = useMemo(() => pool.slice(cursor, cursor + 3), [pool, cursor]);
-  const top = deck[0];
+  const deckQuery = useQuery([near?.lat, near?.lng], (s) => s.swipeDeck(near));
+  const deck = useMemo(() => deckQuery.data ?? [], [deckQuery.data]);
+  const visible = useMemo(() => deck.slice(cursor, cursor + 3), [deck, cursor]);
+  const top = visible[0];
 
-  const commit = (dir: 'left' | 'right', item: FeedItem) => {
+  useEffect(() => {
+    if (near || askedForLocation) return;
+    setAskedForLocation(true);
+    void requestLocation().then((c) => c && setNear(c));
+  }, [near, askedForLocation]);
+
+  const commit = (dir: 'left' | 'right', card: SwipeCard) => {
+    markSwiped(card.id);
     if (dir === 'right') {
-      if (!item.wantToTry) {
-        void store.toggleWantToTry(item.place.id, item.flavour.id, item.review.id);
+      if (!card.wantToTry) {
+        const flavourId = card.kind === 'friend' ? card.flavour.id : null;
+        const sourceId = card.kind === 'friend' ? card.review.id : null;
+        void store.toggleWantToTry(card.place.id, flavourId, sourceId);
       }
-      toast(`${item.flavour.name} at ${item.place.displayName} → Want to Try`);
+      toast(`${card.place.displayName} → Want to Try`);
     }
     setExiting(dir);
     window.setTimeout(() => {
@@ -42,21 +57,39 @@ export function SwipeMode() {
     }, 220);
   };
 
-  if (poolQuery.data === undefined) return <Spinner label="Finding wings" />;
+  if (deckQuery.data === undefined) return <Spinner label="Finding wings near you" />;
 
   if (!top) {
     return (
-      <div className="px-6 py-20 text-center">
-        <p className="text-sm font-bold">That is everything for now.</p>
-        <p className="mt-1.5 text-xs text-muted">New wings appear as people post them.</p>
-        {cursor > 0 && (
+      <div className="px-6 py-16 text-center">
+        <p className="text-sm font-bold">
+          {near ? 'That is everything nearby for now' : 'Nothing to swipe yet'}
+        </p>
+        <p className="mx-auto mt-1.5 max-w-[34ch] text-xs leading-relaxed text-muted">
+          {near
+            ? 'Follow more people, or come back once new places appear near you.'
+            : 'Turn on location to discover wing places around you.'}
+        </p>
+        <div className="mt-5 flex justify-center gap-2">
+          {!near && (
+            <button
+              onClick={() => void requestLocation().then((c) => c && setNear(c))}
+              className="rounded-xl bg-gradient-to-br from-orange to-gold px-5 py-2.5 text-xs font-extrabold text-white shadow-glow"
+            >
+              Use my location
+            </button>
+          )}
           <button
-            onClick={() => setCursor(0)}
-            className="mt-5 rounded-xl border border-line bg-surface px-5 py-2.5 text-xs font-extrabold"
+            onClick={() => {
+              resetSwiped();
+              setCursor(0);
+              deckQuery.refetch();
+            }}
+            className="rounded-xl border border-line bg-surface px-5 py-2.5 text-xs font-extrabold"
           >
             Start over
           </button>
-        )}
+        </div>
       </div>
     );
   }
@@ -65,17 +98,17 @@ export function SwipeMode() {
   const rotation = offset / 22;
 
   return (
-    <div className="px-3">
-      <div className="relative h-[62vh] min-h-[430px]">
-        {deck
+    <div className="px-3 pb-2">
+      <div className="relative h-[52vh] min-h-[380px]">
+        {visible
           .slice()
           .reverse()
-          .map((item, revIndex) => {
-            const depth = deck.length - 1 - revIndex;
+          .map((card, revIndex) => {
+            const depth = visible.length - 1 - revIndex;
             const isTop = depth === 0;
             return (
-              <div
-                key={item.review.id}
+              <article
+                key={card.id}
                 className="absolute inset-0 overflow-hidden rounded-xl3 bg-surface shadow-card"
                 style={{
                   transform: isTop
@@ -97,18 +130,11 @@ export function SwipeMode() {
                 onPointerUp={() => {
                   if (!isTop || start.current == null) return;
                   start.current = null;
-                  if (Math.abs(drag) > 110) commit(drag > 0 ? 'right' : 'left', item);
+                  if (Math.abs(drag) > 110) commit(drag > 0 ? 'right' : 'left', card);
                   else setDrag(0);
                 }}
               >
-                <img
-                  src={sized(item.review.photos[0]?.url, IMAGE_WIDTHS.swipe)}
-                  alt=""
-                  draggable={false}
-                  className="h-full w-full select-none object-cover"
-                />
-                <div className="absolute inset-x-0 bottom-0 top-1/3 bg-gradient-to-t from-black/90 to-transparent" />
-
+                <CardFace card={card} />
                 {isTop && Math.abs(drag) > 30 && (
                   <div
                     className={`absolute top-8 rounded-xl border-4 px-4 py-1.5 text-xl font-black uppercase tracking-wide ${
@@ -121,40 +147,12 @@ export function SwipeMode() {
                     {drag > 0 ? 'Want' : 'Pass'}
                   </div>
                 )}
-
-                <div className="absolute inset-x-0 bottom-0 p-5 text-white">
-                  <div className="flex items-end justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="truncate text-2xl font-black leading-tight">
-                        {item.place.displayName}
-                      </h3>
-                      <p className="mt-1 truncate text-[13px] font-semibold text-white/85">
-                        {[item.flavour.name, formatPrice(item.review.priceCents, item.review.currency)]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </p>
-                      <p className="truncate text-[12px] text-white/70">{item.review.orderText}</p>
-                      <p className="mt-0.5 truncate text-[12px] text-white/70">
-                        {item.place.city} · @{item.author.username}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-3xl font-black leading-none tabular-nums">
-                        {formatScore(item.review.finalScore)}
-                      </p>
-                      <p className="text-[10px] font-bold text-white/70">/ 10</p>
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <HeatMeter value={item.review.heat} size={13} showValue={false} />
-                  </div>
-                </div>
-              </div>
+              </article>
             );
           })}
       </div>
 
-      <div className="mt-4 flex justify-center gap-6">
+      <div className="mt-4 flex items-center justify-center gap-6">
         <button
           onClick={() => commit('left', top)}
           aria-label="Pass"
@@ -172,8 +170,113 @@ export function SwipeMode() {
       </div>
 
       <p className="pt-3 text-center text-[11px] text-muted">
-        Swipe right to save it to Want to Try.
+        {deck.length - cursor} left · swipe right to save to Want to Try
       </p>
     </div>
+  );
+}
+
+function CardFace({ card }: { card: SwipeCard }) {
+  const photo = sized(card.photoUrl ?? undefined, IMAGE_WIDTHS.swipe);
+
+  return (
+    <>
+      {photo ? (
+        <img src={photo} alt="" draggable={false} className="h-full w-full select-none object-cover" />
+      ) : (
+        // No WingZ photo for this place yet. A designed placeholder is honest;
+        // pulling an image from somewhere we have no right to would not be.
+        <div
+          className="grid h-full w-full place-items-center"
+          style={{
+            background:
+              'radial-gradient(120% 80% at 50% 0%, #ff8a3d 0%, #ef5a24 42%, #7a2d12 100%)',
+          }}
+        >
+          <div className="px-8 text-center text-white">
+            <PinIcon className="mx-auto h-11 w-11 opacity-90" />
+            <p className="mt-3 text-2xl font-black leading-tight">{card.place.displayName}</p>
+            <p className="mt-1.5 text-xs font-semibold text-white/70">
+              No photos yet — be the first
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="absolute inset-x-0 bottom-0 top-1/3 bg-gradient-to-t from-black/90 to-transparent" />
+
+      <div className="absolute inset-x-0 bottom-0 p-5 text-white">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide backdrop-blur">
+            {card.kind === 'nearby' ? 'Near you' : 'From a friend'}
+          </span>
+          {card.distanceKm != null && (
+            <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold backdrop-blur">
+              {formatDistance(card.distanceKm)}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="truncate text-2xl font-black leading-tight">{card.place.displayName}</h3>
+            <p className="mt-0.5 truncate text-[12px] text-white/75">
+              {[card.place.formattedAddress || card.place.city, card.place.country]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+
+            {card.kind === 'friend' ? (
+              <div className="mt-2">
+                <p className="truncate text-[13px] font-semibold text-white/90">
+                  {[card.flavour.name, formatPrice(card.review.priceCents, card.review.currency)]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <Avatar src={card.author.avatarUrl} alt="" size={22} />
+                  <span className="truncate text-[11px] text-white/75">@{card.author.username}</span>
+                  <HeatMeter value={card.review.heat} size={12} showValue={false} />
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2 text-[12px] text-white/80">
+                {card.reviewCount > 0 ? (
+                  <span className="flex items-center gap-2">
+                    {card.topFlavour && <span className="truncate">{card.topFlavour}</span>}
+                    {card.communityHeat != null && (
+                      <HeatMeter value={card.communityHeat} size={12} showValue={false} />
+                    )}
+                    <span className="text-white/60">
+                      {card.reviewCount} {card.reviewCount === 1 ? 'review' : 'reviews'}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-white/60">Not rated on WingZ yet</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {card.kind === 'friend' ? (
+            <div className="shrink-0 text-right">
+              <p className="text-3xl font-black leading-none tabular-nums">
+                {formatScore(card.review.finalScore)}
+              </p>
+              <p className="text-[10px] font-bold text-white/70">/ 10</p>
+            </div>
+          ) : (
+            card.communityScore != null && (
+              <div className="shrink-0 text-right">
+                <p className="text-3xl font-black leading-none tabular-nums">
+                  {formatScore(card.communityScore)}
+                </p>
+                <p className="text-[10px] font-bold text-white/70">community</p>
+              </div>
+            )
+          )}
+        </div>
+      </div>
+    </>
   );
 }

@@ -82,19 +82,27 @@ export function createGooglePlacesProvider(apiKey: string): PlacesProvider {
       return toPlace((await res.json()) as GooglePlace);
     },
 
-    async geocodeAddress(address) {
+    async searchAddresses(address) {
       const data = (await post(
         '/places:searchText',
         { textQuery: address },
-        'places.formattedAddress,places.location',
+        'places.formattedAddress,places.location,places.addressComponents',
       )) as { places?: GooglePlace[] };
-      const hit = data.places?.[0];
-      if (!hit?.location) return null;
-      return {
-        lat: hit.location.latitude,
-        lng: hit.location.longitude,
-        formatted: hit.formattedAddress ?? address,
-      };
+      return (data.places ?? [])
+        .filter((p) => p.location)
+        .map((p) => ({
+          formatted: p.formattedAddress ?? address,
+          lat: p.location!.latitude,
+          lng: p.location!.longitude,
+          city: component(p.addressComponents, 'locality'),
+          region: component(p.addressComponents, 'administrative_area_level_1'),
+          country: component(p.addressComponents, 'country'),
+        }));
+    },
+
+    async geocodeAddress(address) {
+      const [first] = await this.searchAddresses(address);
+      return first ?? null;
     },
 
     async nearby(bounds: LatLngBounds) {
