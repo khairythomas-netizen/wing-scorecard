@@ -31,12 +31,18 @@ separately only if you want to apply them piecemeal.
 
 ```
 https://khairythomas-netizen.github.io/wing-scorecard/
-http://localhost:5173/wing-scorecard/
+http://localhost:5273/wing-scorecard/
 ```
 
 *Confirm email* is on by default. That is the safer setting, and the app
 handles it — signup shows a "check your email" screen. To skip the inbox
 round-trip while testing, turn it off and signup will sign you straight in.
+This project currently has it off, so new accounts are usable immediately.
+
+Google and Apple sign-in are optional and configured entirely in their own
+dashboards. See [SOCIAL_SIGNIN.md](SOCIAL_SIGNIN.md). The app shows only the
+providers that are actually switched on, so there is nothing to deploy: finish
+the setup and the button appears.
 
 ## 4. Point the app at it
 

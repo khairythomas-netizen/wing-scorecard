@@ -1,0 +1,83 @@
+# Turning on Google and Apple sign-in
+
+The app already has the buttons. It asks Supabase which providers are switched
+on and shows only those, so nothing here needs a code change or a redeploy —
+finish a section below and the button appears on the next page load.
+
+Everything in this file happens in a dashboard. None of it can be done from
+the repo.
+
+Two values you will paste repeatedly:
+
+| Thing | Value |
+| --- | --- |
+| Supabase callback URL | `https://kukhjyecluksittmfyyi.supabase.co/auth/v1/callback` |
+| The live app | `https://khairythomas-netizen.github.io/wing-scorecard/` |
+
+## 0. Allow the app as a redirect target (do this first, once)
+
+Supabase refuses to send anyone back to a URL it does not recognise, and the
+app lives on a sub-path, so the origin alone is not enough.
+
+In **Supabase → Authentication → URL Configuration**:
+
+- **Site URL**: `https://khairythomas-netizen.github.io/wing-scorecard/`
+- **Redirect URLs**: add both
+  - `https://khairythomas-netizen.github.io/wing-scorecard/`
+  - `http://localhost:5273/wing-scorecard/`
+
+## 1. Google
+
+Free. About ten minutes.
+
+1. Open the [Google Cloud Console](https://console.cloud.google.com/) and
+   create a project called WingZ.
+2. **APIs & Services → OAuth consent screen**. Choose **External**. Fill in the
+   app name, your support email and developer contact email. The default
+   scopes (`email`, `profile`, `openid`) are all that is needed.
+3. While the consent screen sits in **Testing**, only accounts you add under
+   *Test users* can sign in. Press **Publish app** when you want it open to
+   everyone. Google does not review an app that asks only for email and
+   profile, so publishing is immediate.
+4. **APIs & Services → Credentials → Create credentials → OAuth client ID**,
+   type **Web application**.
+   - *Authorised JavaScript origins*: `https://khairythomas-netizen.github.io`
+     and `http://localhost:5273`
+   - *Authorised redirect URIs*: the Supabase callback URL from the table above
+5. Copy the **Client ID** and **Client secret**.
+6. **Supabase → Authentication → Sign In / Providers → Google**: enable it,
+   paste both values, save.
+
+Reload the app. "Continue with Google" is there.
+
+## 2. Apple
+
+Apple charges for this. Sign In with Apple needs a **paid Apple Developer
+Program membership**, currently 99 USD a year. If you are not paying for one
+already, do Google first and leave this until the app is worth it.
+
+All of it happens at
+[developer.apple.com](https://developer.apple.com/account/resources/identifiers/list).
+
+1. **Identifiers → + → App IDs → App**. Give it a description and a bundle ID
+   such as `app.wingz`. Tick **Sign In with Apple**. Register it.
+2. **Identifiers → + → Services IDs**. Description "WingZ Web", identifier
+   `app.wingz.web`. Register, then open it again and tick **Sign In with
+   Apple → Configure**:
+   - *Primary App ID*: the App ID from step 1
+   - *Domains and Subdomains*: `kukhjyecluksittmfyyi.supabase.co`
+   - *Return URLs*: the Supabase callback URL from the table above
+3. **Keys → +**. Name it "WingZ Sign In", tick **Sign In with Apple**,
+   configure it against the same primary App ID, then Register and
+   **Download** the `.p8` file. Apple lets you download it exactly once, so
+   put it somewhere safe immediately.
+4. Note three values: the **Key ID** (shown with the key), your **Team ID**
+   (top right of the developer portal) and the **Services ID** from step 2.
+5. **Supabase → Authentication → Sign In / Providers → Apple**: enable it and
+   fill in the Services ID as the client ID, plus the Team ID, Key ID and the
+   full text of the `.p8` file.
+
+Two things worth knowing about Apple. It sends a person's name only on their
+very first authorisation, which is why the app stores it straight away. And
+anyone can choose "Hide My Email", so the address you receive may be an Apple
+relay address rather than their real one. Both are handled.
