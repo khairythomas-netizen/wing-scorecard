@@ -34,7 +34,7 @@ export interface MapSurfaceProps {
  * data and Discover does not change when the provider does.
  */
 export interface MapProvider {
-  readonly name: 'maplibre' | 'mapbox';
+  readonly name: 'leaflet';
   readonly Surface: ComponentType<MapSurfaceProps>;
 }
 

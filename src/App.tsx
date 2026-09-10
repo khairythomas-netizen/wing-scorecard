@@ -16,17 +16,19 @@ import { RateScreen } from './features/rate/RateScreen';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { StoreContext, store } from './hooks/useStore';
 import { ToastProvider, useToast } from './hooks/useToast';
-import { useTheme } from './hooks/useTheme';
+import { ThemeProvider, useTheme } from './hooks/useTheme';
 import { applyUpdate, onUpdateAvailable } from './lib/pwa';
 
 export function App() {
   return (
     <StoreContext.Provider value={store}>
-      <AuthProvider>
-        <ToastProvider>
-          <Gate />
-        </ToastProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <ToastProvider>
+            <Gate />
+          </ToastProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </StoreContext.Provider>
   );
 }
