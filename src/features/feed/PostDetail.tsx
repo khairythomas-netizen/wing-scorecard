@@ -12,10 +12,12 @@ export function PostDetail({
   reviewId,
   onBack,
   onOpenProfile,
+  onEdit,
 }: {
   reviewId: string;
   onBack: () => void;
   onOpenProfile: (id: string) => void;
+  onEdit?: (reviewId: string) => void;
 }) {
   const post = useQuery([reviewId], (s) => s.feedItem(reviewId));
 
@@ -42,7 +44,7 @@ export function PostDetail({
           detail="It may have been deleted, or the account is private."
         />
       ) : (
-        <PostCard item={post.data} onOpenProfile={onOpenProfile} />
+        <PostCard item={post.data} onOpenProfile={onOpenProfile} onEdit={onEdit} />
       )}
     </div>
   );

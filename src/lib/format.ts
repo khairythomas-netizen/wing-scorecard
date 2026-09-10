@@ -43,3 +43,7 @@ export function timeAgo(iso: string): string {
 
 export const compact = (n: number): string =>
   new Intl.NumberFormat(undefined, { notation: 'compact' }).format(n);
+
+/** Human labels for the descriptive wing attributes. */
+export const STYLE_LABEL = { bone_in: 'Bone-in', boneless: 'Boneless' } as const;
+export const BREADING_LABEL = { non_breaded: 'Non-breaded', breaded: 'Breaded' } as const;

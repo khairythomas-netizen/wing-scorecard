@@ -9,6 +9,7 @@ import { DiscoverScreen } from './features/discover/DiscoverScreen';
 import { FeedScreen } from './features/feed/FeedScreen';
 import { PeopleSearch } from './features/feed/PeopleSearch';
 import { PostDetail } from './features/feed/PostDetail';
+import { EditPost } from './features/feed/EditPost';
 import { ProfileScreen } from './features/profile/ProfileScreen';
 import { RankingsScreen } from './features/rankings/RankingsScreen';
 import { RateScreen } from './features/rate/RateScreen';
@@ -67,6 +68,7 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
   const [peopleOpen, setPeopleOpen] = useState(false);
   // Which post is open, and which tab to return to when it closes.
   const [openPost, setOpenPost] = useState<{ id: string; from: TabId } | null>(null);
+  const [editingPost, setEditingPost] = useState<string | null>(null);
 
   useEffect(() => onUpdateAvailable(setUpdateReady), []);
   useEffect(() => {
@@ -76,6 +78,7 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
   const go = useCallback(
     (next: TabId) => {
       setOpenPost(null);
+      setEditingPost(null);
       setTab(next);
       if (next === 'profile' && user?.id) setProfileId(user.id);
       window.scrollTo({ top: 0 });
@@ -96,8 +99,8 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
   };
 
   return (
-    <div className="min-h-app app-scroll mx-auto w-full max-w-[600px]">
-      <header className="app-header sticky top-0 z-40 flex items-center justify-between border-b border-line bg-[var(--glass)] px-4 backdrop-blur-xl">
+    <div className="min-h-app app-scroll app-content mx-auto w-full max-w-[600px]">
+      <header className="app-header fixed left-1/2 top-0 z-40 flex w-full max-w-[600px] -translate-x-1/2 items-center justify-between border-b border-line bg-[var(--glass)] px-4 backdrop-blur-xl">
         <BrandLockup />
         <div className="flex items-center gap-2">
           {client.requiresSignIn && (
@@ -133,7 +136,15 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
       </header>
 
       <main>
-        {openPost ? (
+        {editingPost ? (
+          <EditPost
+            reviewId={editingPost}
+            onDone={() => {
+              setEditingPost(null);
+              window.scrollTo({ top: 0 });
+            }}
+          />
+        ) : openPost ? (
           <PostDetail
             reviewId={openPost.id}
             onBack={() => {
@@ -141,10 +152,17 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
               window.scrollTo({ top: 0 });
             }}
             onOpenProfile={openProfile}
+            onEdit={setEditingPost}
           />
         ) : (
           <>
-        {tab === 'feed' && <FeedScreen onOpenProfile={openProfile} onFindPeople={() => setPeopleOpen(true)} />}
+        {tab === 'feed' && (
+          <FeedScreen
+            onOpenProfile={openProfile}
+            onFindPeople={() => setPeopleOpen(true)}
+            onEdit={setEditingPost}
+          />
+        )}
         {tab === 'discover' && <DiscoverScreen theme={theme} />}
         {tab === 'rate' && <RateScreen onPublished={() => go('feed')} />}
         {tab === 'rankings' && <RankingsScreen />}

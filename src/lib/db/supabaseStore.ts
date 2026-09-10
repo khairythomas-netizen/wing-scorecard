@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { toProfile } from '../auth/supabaseAuth';
+import { prepareImage } from '../images';
 import { normalizeName } from '../places/provider';
 import { calculateScore, round1 } from '../scoring';
 import { PHOTO_BUCKET } from '../supabase/client';
@@ -40,6 +41,8 @@ export interface ReviewRow {
   price_cents: number | null;
   currency: string;
   heat: number;
+  style?: string | null;
+  breading?: string | null;
   caption: string;
   visibility: string;
   base_score: string | number;
@@ -56,7 +59,7 @@ export interface ReviewRow {
 
 const REVIEW_SELECT = `
   id, author_id, place_id, flavour_id, order_text, price_cents, currency,
-  heat, caption, visibility, base_score, bonus_score, final_score, created_at,
+  heat, style, breading, caption, visibility, base_score, bonus_score, final_score, created_at,
   author:profiles!reviews_author_id_fkey(id, username, display_name, bio, avatar_url, is_private),
   place:places(*),
   flavour:wing_flavours(id, name, normalized_name),
@@ -99,6 +102,9 @@ export function toReview(row: ReviewRow): Review {
     priceCents: row.price_cents ?? null,
     currency: row.currency,
     heat: row.heat as Review['heat'],
+    // Older rows predate these columns; the database default matches.
+    style: (row.style as Review['style']) ?? 'bone_in',
+    breading: (row.breading as Review['breading']) ?? 'non_breaded',
     scores: {
       cook: num(s.cook),
       cookPosition: num(s.cook_position),
@@ -261,19 +267,24 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
       });
   }
 
-  /** Upload a picked file and return its public URL. */
+  /** Downscale a picked file and upload it, returning its public URL. */
   async function uploadPhoto(photo: DraftPhoto, index: number): Promise<string> {
     if (!photo.file) return photo.url;
     const uid = me();
     if (!uid) throw new Error('Not signed in');
 
-    const ext = (photo.file.name.split('.').pop() ?? 'jpg').toLowerCase();
+    const prepared = await prepareImage(photo.file);
+    const ext = (prepared.file.name.split('.').pop() ?? 'jpg').toLowerCase();
     // The folder must be the uploader's id: the storage policy checks it.
     const path = `${uid}/${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
-    const { error } = await client.storage
-      .from(PHOTO_BUCKET)
-      .upload(path, photo.file, { contentType: photo.file.type, upsert: false });
+    const { error } = await client.storage.from(PHOTO_BUCKET).upload(path, prepared.file, {
+      contentType: prepared.file.type,
+      upsert: false,
+      // Filenames are unique, so the bytes at a path never change. Storage
+      // defaults to no-cache, which made every scroll re-download every photo.
+      cacheControl: '31536000',
+    });
     fail('Photo upload', error);
 
     return client.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
@@ -489,6 +500,8 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
         p_price_cents: draft.priceCents,
         p_currency: draft.currency,
         p_heat: draft.heat,
+        p_style: draft.style,
+        p_breading: draft.breading,
         p_caption: draft.caption,
         p_visibility: draft.visibility,
         p_base: result.base,
@@ -510,6 +523,8 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
         priceCents: draft.priceCents,
         currency: draft.currency,
         heat: draft.heat,
+        style: draft.style,
+        breading: draft.breading,
         scores: { ...result.components, cookPosition: draft.scores.cookPosition },
         bonuses: draft.bonuses,
         baseScore: result.base,
@@ -527,6 +542,53 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
         likeCount: 0,
         commentCount: 0,
       };
+    },
+
+    async updateReview(reviewId, edit) {
+      if (!me()) throw new Error('Not signed in');
+
+      // Recomputed here too, so a stored total always matches its components.
+      const result = calculateScore({
+        cookPosition: edit.scores.cookPosition,
+        flavour: edit.scores.flavour,
+        sauce: edit.scores.sauce,
+        value: edit.scores.value,
+        size: edit.scores.size,
+        eye: edit.scores.eye,
+        sides: edit.scores.sides,
+        ratio: edit.scores.ratio,
+        drink: edit.scores.drink,
+        towelette: edit.scores.towelette > 0,
+        napkins: edit.scores.napkins > 0,
+        sauceOptions: edit.scores.sauceOptions,
+        atmosphere: edit.scores.atmosphere,
+        bonuses: edit.bonuses,
+      });
+
+      const { data: flavourId, error: flavourError } = await client.rpc('resolve_flavour', {
+        p_name: edit.flavourName,
+        p_normalized: normalizeName(edit.flavourName),
+      });
+      fail('Save flavour', flavourError);
+
+      const { error } = await client.rpc('update_review', {
+        p_review_id: reviewId,
+        p_order_text: edit.orderText,
+        p_price_cents: edit.priceCents,
+        p_currency: edit.currency,
+        p_heat: edit.heat,
+        p_caption: edit.caption,
+        p_flavour_id: flavourId,
+        p_style: edit.style,
+        p_breading: edit.breading,
+        p_base: result.base,
+        p_bonus: result.bonus,
+        p_final: result.final,
+        p_scores: { ...result.components, cookPosition: edit.scores.cookPosition },
+        p_bonuses: edit.bonuses.filter((b) => b.amount > 0).map((b) => ({ reason: b.reason, amount: b.amount })),
+      });
+      fail('Save changes', error);
+      notify();
     },
 
     async reviewsByAuthor(id) {

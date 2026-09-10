@@ -11,7 +11,7 @@ import {
   formatScore,
   type BonusEntry,
 } from '../../lib/scoring';
-import type { Place } from '../../lib/types';
+import type { Breading, Place, WingStyle } from '../../lib/types';
 import { BonusEditor, newBonusRow } from './BonusEditor';
 import { CookSlider } from './CookSlider';
 import { HeatPicker } from './HeatPicker';
@@ -27,6 +27,8 @@ interface Draft {
   priceText: string;
   caption: string;
   heat: 1 | 2 | 3 | 4 | 5 | null;
+  style: WingStyle;
+  breading: Breading;
   cookPosition: number;
   flavour: number;
   sauce: number;
@@ -51,6 +53,9 @@ const emptyDraft = (): Draft => ({
   priceText: '',
   caption: '',
   heat: null,
+  // Descriptive defaults: most wings are bone-in and non-breaded.
+  style: 'bone_in',
+  breading: 'non_breaded',
   cookPosition: COOK_SLIDER_CENTER,
   flavour: 1,
   sauce: 0.5,
@@ -155,6 +160,8 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
         priceCents,
         currency: 'CAD',
         heat: d.heat,
+        style: d.style,
+        breading: d.breading,
         scores: { ...result.components, cookPosition: d.cookPosition },
         bonuses: d.bonuses.filter((b) => b.amount > 0),
         caption: d.caption.trim(),
@@ -183,9 +190,9 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
       <div className="space-y-3 px-4">
         <PhotoPicker photos={d.photos} onChange={(p) => set('photos', p)} />
 
-        <Field label="Restaurant" required>
+        <FieldGroup label="Restaurant" required>
           <RestaurantPicker value={d.place} onChange={(p) => set('place', p)} />
-        </Field>
+        </FieldGroup>
 
         <Field label="What did you order?" required>
           <TextInput
@@ -228,6 +235,27 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
             className="w-full resize-none rounded-xl2 border border-line bg-surface px-3.5 py-3 text-sm outline-none placeholder:text-muted focus:border-orange"
           />
         </Field>
+
+        <div className="grid grid-cols-2 gap-2">
+          <Choice
+            label="Style"
+            value={d.style}
+            options={[
+              ['bone_in', 'Bone-in'],
+              ['boneless', 'Boneless'],
+            ]}
+            onChange={(v) => set('style', v)}
+          />
+          <Choice
+            label="Breading"
+            value={d.breading}
+            options={[
+              ['non_breaded', 'Non-breaded'],
+              ['breaded', 'Breaded'],
+            ]}
+            onChange={(v) => set('breading', v)}
+          />
+        </div>
 
         <HeatPicker value={d.heat} onChange={(h) => set('heat', h)} />
       </div>
@@ -310,6 +338,29 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
 
 /* ------------------------------------------------------------------ pieces */
 
+/**
+ * For composite controls. A <label> would forward taps on anything inside it
+ * to its first form control, which reopens the restaurant dropdown mid-tap.
+ */
+function FieldGroup({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <span className="mb-1.5 ml-1 block text-[11px] font-bold text-muted">
+        {label} {required && <span className="text-orange">*</span>}
+      </span>
+      {children}
+    </div>
+  );
+}
+
 function Field({
   label,
   required,
@@ -354,6 +405,42 @@ function TextInput({
       list={list}
       className="w-full rounded-xl2 border border-line bg-surface px-3.5 py-3 text-sm outline-none placeholder:text-muted focus:border-orange"
     />
+  );
+}
+
+/** A two-way descriptive toggle. Like heat, these never affect the score. */
+function Choice<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: [T, string][];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="rounded-xl2 border border-line bg-surface p-3">
+      <p className="text-[11px] font-bold text-muted">{label}</p>
+      <div className="mt-2 flex gap-1.5">
+        {options.map(([v, text]) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onChange(v)}
+            aria-pressed={value === v}
+            className={`flex-1 rounded-lg border py-2 text-[11px] font-bold transition-colors ${
+              value === v
+                ? 'border-transparent bg-orange text-white'
+                : 'border-line bg-surface2 text-muted'
+            }`}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

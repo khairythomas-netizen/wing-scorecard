@@ -4,6 +4,7 @@ import { CloseIcon, HeartIcon } from '../../components/Icons';
 import { useQuery, useStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
 import { formatPrice } from '../../lib/format';
+import { IMAGE_WIDTHS, sized } from '../../lib/images';
 import { formatScore } from '../../lib/scoring';
 import { Spinner } from '../../components/States';
 import type { FeedItem } from '../../lib/types';
@@ -101,7 +102,7 @@ export function SwipeMode() {
                 }}
               >
                 <img
-                  src={item.review.photos[0]?.url}
+                  src={sized(item.review.photos[0]?.url, IMAGE_WIDTHS.swipe)}
                   alt=""
                   draggable={false}
                   className="h-full w-full select-none object-cover"

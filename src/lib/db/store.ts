@@ -33,11 +33,27 @@ export interface DraftReview {
   priceCents: number | null;
   currency: string;
   heat: 1 | 2 | 3 | 4 | 5;
+  style: Review['style'];
+  breading: Review['breading'];
   scores: Review['scores'];
   bonuses: Review['bonuses'];
   caption: string;
   photos: DraftPhoto[];
   visibility: Review['visibility'];
+}
+
+/** The fields a review's author may change after posting. */
+export interface ReviewEdit {
+  orderText: string;
+  flavourName: string;
+  priceCents: number | null;
+  currency: string;
+  heat: 1 | 2 | 3 | 4 | 5;
+  style: Review['style'];
+  breading: Review['breading'];
+  caption: string;
+  scores: Review['scores'];
+  bonuses: Review['bonuses'];
 }
 
 export interface RankingFilters {
@@ -111,6 +127,8 @@ export interface WingzStore {
   listCities(): Promise<string[]>;
 
   createReview(draft: DraftReview): Promise<Review>;
+  /** Author-only. Photos and restaurant are not editable. */
+  updateReview(reviewId: ID, edit: ReviewEdit): Promise<void>;
   reviewsByAuthor(id: ID): Promise<Review[]>;
   /** One post with everything needed to render it, or null if not visible. */
   feedItem(reviewId: ID): Promise<FeedItem | null>;

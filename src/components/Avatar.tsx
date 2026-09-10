@@ -1,3 +1,5 @@
+import { IMAGE_WIDTHS, sized } from '../lib/images';
+
 export function Avatar({
   src,
   alt,
@@ -11,7 +13,7 @@ export function Avatar({
 }) {
   const img = (
     <img
-      src={src}
+      src={sized(src, IMAGE_WIDTHS.avatar)}
       alt={alt}
       loading="lazy"
       width={size}

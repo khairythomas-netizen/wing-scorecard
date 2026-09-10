@@ -117,6 +117,8 @@ function buildSeedReview(spec: SeedSpec, flavours: WingFlavour[]): Review {
     priceCents: spec.price,
     currency: 'CAD',
     heat: spec.heat,
+    style: 'bone_in',
+    breading: 'non_breaded',
     scores: { ...result.components, cookPosition: spec.cookPosition },
     bonuses,
     baseScore: result.base,
@@ -450,6 +452,8 @@ export function createLocalStore(): WingzStore {
         priceCents: draft.priceCents,
         currency: draft.currency,
         heat: draft.heat,
+        style: draft.style,
+        breading: draft.breading,
         scores: { ...result.components, cookPosition: draft.scores.cookPosition },
         bonuses: draft.bonuses,
         baseScore: result.base,
@@ -465,6 +469,46 @@ export function createLocalStore(): WingzStore {
       db.reviews.unshift(review);
       commit();
       return review;
+    },
+
+    async updateReview(reviewId, edit) {
+      const review = db.reviews.find((r) => r.id === reviewId);
+      if (!review) throw new Error('Review not found');
+      if (review.authorId !== me()) throw new Error('That review is not yours to edit');
+
+      const result = calculateScore({
+        cookPosition: edit.scores.cookPosition,
+        flavour: edit.scores.flavour,
+        sauce: edit.scores.sauce,
+        value: edit.scores.value,
+        size: edit.scores.size,
+        eye: edit.scores.eye,
+        sides: edit.scores.sides,
+        ratio: edit.scores.ratio,
+        drink: edit.scores.drink,
+        towelette: edit.scores.towelette > 0,
+        napkins: edit.scores.napkins > 0,
+        sauceOptions: edit.scores.sauceOptions,
+        atmosphere: edit.scores.atmosphere,
+        bonuses: edit.bonuses,
+      });
+
+      Object.assign(review, {
+        orderText: edit.orderText,
+        flavourId: resolveFlavour(edit.flavourName).id,
+        priceCents: edit.priceCents,
+        currency: edit.currency,
+        heat: edit.heat,
+        style: edit.style,
+        breading: edit.breading,
+        caption: edit.caption,
+        scores: { ...result.components, cookPosition: edit.scores.cookPosition },
+        bonuses: edit.bonuses,
+        baseScore: result.base,
+        bonusScore: result.bonus,
+        finalScore: result.final,
+      });
+      commit();
     },
 
     async reviewsByAuthor(id) {

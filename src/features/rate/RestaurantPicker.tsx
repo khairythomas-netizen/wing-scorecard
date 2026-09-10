@@ -19,6 +19,7 @@ export function RestaurantPicker({
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const seq = useRef(0);
 
   useEffect(() => {
@@ -28,22 +29,39 @@ export function RestaurantPicker({
     }
     const id = ++seq.current;
     setLoading(true);
+    setError(null);
     const timer = window.setTimeout(async () => {
-      const results = await placesProvider.autocomplete(query);
-      // Ignore a response that lost the race to a newer keystroke.
-      if (id !== seq.current) return;
-      setSuggestions(results);
-      setLoading(false);
+      try {
+        const results = await placesProvider.autocomplete(query);
+        // Ignore a response that lost the race to a newer keystroke.
+        if (id !== seq.current) return;
+        setSuggestions(results);
+      } catch (err) {
+        if (id !== seq.current) return;
+        setSuggestions([]);
+        setError(err instanceof Error ? err.message : 'Search is unavailable right now.');
+      } finally {
+        if (id === seq.current) setLoading(false);
+      }
     }, 220);
     return () => window.clearTimeout(timer);
   }, [query, value]);
 
   const pick = async (s: PlaceSuggestion) => {
-    const place = await placesProvider.details(s.externalId);
-    if (!place) return;
-    onChange(place);
+    // Close first. If the provider is slow the dropdown must not sit open
+    // looking unresponsive, and it must not reopen underneath the result.
     setOpen(false);
     setQuery('');
+    const place = await placesProvider.details(s.externalId);
+    if (place) {
+      onChange(place);
+      return;
+    }
+    // details() should not miss, but if it ever does, restore what the user
+    // typed rather than silently swallowing the tap and clearing the field.
+    setQuery(s.primaryText);
+    setOpen(true);
+    setError('Could not load that place. Try selecting it again.');
   };
 
   if (value) {
@@ -83,16 +101,22 @@ export function RestaurantPicker({
           {loading && suggestions.length === 0 && (
             <p className="px-3.5 py-3 text-[12px] text-muted">Searching…</p>
           )}
-          {!loading && suggestions.length === 0 && (
+          {error && <p className="px-3.5 py-3 text-[12px] font-semibold text-danger">{error}</p>}
+          {!loading && !error && suggestions.length === 0 && (
             <p className="px-3.5 py-3 text-[12px] text-muted">
-              No match. Try a shorter search.
+              No match. Try a shorter search, or include the city.
             </p>
           )}
           {suggestions.map((s) => (
             <button
               key={s.externalId}
               type="button"
-              onClick={() => void pick(s)}
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                void pick(s);
+              }}
               className="flex w-full items-center gap-3 border-b border-line px-3.5 py-2.5 text-left last:border-0 hover:bg-surface2"
             >
               <PinIcon className="h-4 w-4 shrink-0 text-muted" />

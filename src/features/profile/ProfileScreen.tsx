@@ -5,6 +5,7 @@ import { EmptyState, Spinner } from '../../components/States';
 import { mapProvider, type MapViewport } from '../../lib/map';
 import type { Theme } from '../../hooks/useTheme';
 import { compact } from '../../lib/format';
+import { IMAGE_WIDTHS, sized } from '../../lib/images';
 import { RankingsScreen } from '../rankings/RankingsScreen';
 import { FollowRequests } from './FollowRequests';
 
@@ -145,7 +146,7 @@ export function ProfileScreen({
               className="relative aspect-square w-full overflow-hidden bg-surface2 active:opacity-80"
             >
               <img
-                src={r.photos[0]?.url}
+                src={sized(r.photos[0]?.url, IMAGE_WIDTHS.grid)}
                 alt=""
                 loading="lazy"
                 className="h-full w-full object-cover"

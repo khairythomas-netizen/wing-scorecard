@@ -220,3 +220,25 @@ describe('schema and types agree', () => {
     expect(dbProviders).toEqual(tsProviders);
   });
 });
+
+describe('image URL sizing', () => {
+  it('rewrites a Supabase storage URL to request a resized copy', async () => {
+    const { sized } = await import('../images');
+    const url =
+      'https://x.supabase.co/storage/v1/object/public/wing-photos/user/photo.jpeg';
+    const out = sized(url, 900)!;
+    expect(out).toContain('/storage/v1/render/image/public/');
+    expect(out).toContain('width=900');
+    expect(out).not.toContain('/object/public/');
+  });
+
+  it('leaves non-storage URLs untouched', async () => {
+    const { sized } = await import('../images');
+    // Seed images and local blob previews must not be rewritten.
+    expect(sized('https://images.unsplash.com/photo-123?w=800', 900)).toBe(
+      'https://images.unsplash.com/photo-123?w=800',
+    );
+    expect(sized('blob:http://localhost/abc', 900)).toBe('blob:http://localhost/abc');
+    expect(sized(undefined, 900)).toBeUndefined();
+  });
+});

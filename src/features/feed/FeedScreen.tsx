@@ -7,9 +7,11 @@ import { PostCard } from './PostCard';
 export function FeedScreen({
   onOpenProfile,
   onFindPeople,
+  onEdit,
 }: {
   onOpenProfile: (id: string) => void;
   onFindPeople: () => void;
+  onEdit: (reviewId: string) => void;
 }) {
   const feed = useQuery([], (s) => s.feed());
   const following = useQuery([], (s) => s.followingProfiles());
@@ -63,7 +65,7 @@ export function FeedScreen({
         </div>
       ) : (
         feed.data.map((item) => (
-          <PostCard key={item.review.id} item={item} onOpenProfile={onOpenProfile} />
+          <PostCard key={item.review.id} item={item} onOpenProfile={onOpenProfile} onEdit={onEdit} />
         ))
       )}
     </div>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Chip, ChipRow } from '../../components/Chip';
 import { HeatMeter } from '../../components/HeatMeter';
 import { ScoreBadge } from '../../components/ScoreBadge';
+import { IMAGE_WIDTHS, sized } from '../../lib/images';
 import { useQuery, useStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
 import { mapProvider, type MapMarker, type MapViewport } from '../../lib/map';
@@ -152,7 +153,12 @@ export function MapMode({ theme }: { theme: Theme }) {
           <div className="animate-rise absolute inset-x-2 bottom-2 z-40 rounded-xl2 border border-line bg-[var(--glass)] p-3 backdrop-blur-xl">
             <div className="flex gap-3">
               {detail.photoUrl && (
-                <img src={detail.photoUrl} alt="" className="h-20 w-20 shrink-0 rounded-xl object-cover" />
+                <img
+                  src={sized(detail.photoUrl, IMAGE_WIDTHS.thumb)}
+                  alt=""
+                  loading="lazy"
+                  className="h-20 w-20 shrink-0 rounded-xl object-cover"
+                />
               )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-extrabold">{detail.place.displayName}</p>

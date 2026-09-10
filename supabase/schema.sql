@@ -94,6 +94,8 @@ create table if not exists reviews (
   currency     text not null default 'CAD',
   -- Descriptive metadata only. Never contributes to the score.
   heat         smallint not null check (heat between 1 and 5),
+  style        text not null default 'bone_in' check (style in ('bone_in','boneless')),
+  breading     text not null default 'non_breaded' check (breading in ('non_breaded','breaded')),
   caption      text not null default '',
   visibility   text not null default 'public' check (visibility in ('public','followers')),
   base_score   numeric(3,1) not null check (base_score between 0 and 10),

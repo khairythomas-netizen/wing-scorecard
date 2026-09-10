@@ -7,14 +7,23 @@ import { ScoreBadge } from '../../components/ScoreBadge';
 import { Sheet } from '../../components/Sheet';
 import { useQuery, useStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
-import { compact, formatPrice, timeAgo } from '../../lib/format';
+import { BREADING_LABEL, STYLE_LABEL, compact, formatPrice, timeAgo } from '../../lib/format';
+import { IMAGE_WIDTHS, sized } from '../../lib/images';
 import type { FeedItem } from '../../lib/types';
 
 /**
  * The photo is the post. Everything structured hangs around it rather than
  * competing with it, and the score is a tap away from its full breakdown.
  */
-export function PostCard({ item, onOpenProfile }: { item: FeedItem; onOpenProfile: (id: string) => void }) {
+export function PostCard({
+  item,
+  onOpenProfile,
+  onEdit,
+}: {
+  item: FeedItem;
+  onOpenProfile: (id: string) => void;
+  onEdit?: (reviewId: string) => void;
+}) {
   const store = useStore();
   const toast = useToast();
   const { review, author, place, flavour } = item;
@@ -49,6 +58,14 @@ export function PostCard({ item, onOpenProfile }: { item: FeedItem; onOpenProfil
         <span className="shrink-0 text-[10px] font-semibold text-muted">
           {timeAgo(review.createdAt)}
         </span>
+        {onEdit && review.authorId === store.currentUserId() && (
+          <button
+            onClick={() => onEdit(review.id)}
+            className="shrink-0 rounded-lg border border-line px-2.5 py-1 text-[10px] font-extrabold text-muted"
+          >
+            Edit
+          </button>
+        )}
       </header>
 
       <div
@@ -61,7 +78,7 @@ export function PostCard({ item, onOpenProfile }: { item: FeedItem; onOpenProfil
         {photos.map((p) => (
           <img
             key={p.id}
-            src={p.url}
+            src={sized(p.url, IMAGE_WIDTHS.feed)}
             alt={`${flavour.name} wings at ${place.displayName}`}
             loading="lazy"
             className="aspect-square w-full shrink-0 snap-center bg-surface2 object-cover"
@@ -122,6 +139,16 @@ export function PostCard({ item, onOpenProfile }: { item: FeedItem; onOpenProfil
           {[flavour.name, formatPrice(review.priceCents, review.currency), place.displayName]
             .filter(Boolean)
             .join(' · ')}
+        </p>
+        <p className="mt-1 flex flex-wrap gap-1.5">
+          {[STYLE_LABEL[review.style], BREADING_LABEL[review.breading]].map((t) => (
+            <span
+              key={t}
+              className="rounded-md bg-surface2 px-1.5 py-0.5 text-[10px] font-bold text-muted"
+            >
+              {t}
+            </span>
+          ))}
         </p>
 
         {review.caption && (

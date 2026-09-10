@@ -6,6 +6,7 @@ import { Sheet } from '../../components/Sheet';
 import { useQuery } from '../../hooks/useStore';
 import { EmptyState, ErrorState, Spinner } from '../../components/States';
 import { formatScore } from '../../lib/scoring';
+import { IMAGE_WIDTHS, sized } from '../../lib/images';
 import type { RankingFilters } from '../../lib/db/store';
 import type { FeedItem } from '../../lib/types';
 
@@ -119,7 +120,7 @@ export function RankingsScreen({ userId, title }: { userId?: string; title?: str
               {i + 1}
             </span>
             <img
-              src={item.review.photos[0]?.url}
+              src={sized(item.review.photos[0]?.url, IMAGE_WIDTHS.thumb)}
               alt=""
               loading="lazy"
               className="h-16 w-16 shrink-0 rounded-xl object-cover"

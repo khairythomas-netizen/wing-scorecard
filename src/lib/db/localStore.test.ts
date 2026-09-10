@@ -19,6 +19,8 @@ const draft = (over: Partial<Parameters<WingzStore['createReview']>[0]> = {}) =>
   priceCents: 1899,
   currency: 'CAD',
   heat: 4 as const,
+  style: 'bone_in' as const,
+  breading: 'non_breaded' as const,
   scores: {
     cook: 3,
     cookPosition: COOK_SLIDER_CENTER,
@@ -389,5 +391,131 @@ describe('finding people to follow', () => {
     await store.toggleFollow('u_maya');
     feed = await store.feed();
     expect(feed.some((f) => f.review.authorId === 'u_maya')).toBe(true);
+  });
+});
+
+describe('wing style and breading descriptors', () => {
+  it('defaults to bone-in and non-breaded', async () => {
+    const r = await store.createReview(draft());
+    expect(r.style).toBe('bone_in');
+    expect(r.breading).toBe('non_breaded');
+  });
+
+  it('records the other options when chosen', async () => {
+    const r = await store.createReview(draft({ style: 'boneless', breading: 'breaded' }));
+    expect(r.style).toBe('boneless');
+    expect(r.breading).toBe('breaded');
+  });
+
+  it('never affects the score, exactly like heat', async () => {
+    const boneIn = await store.createReview(draft({ style: 'bone_in', breading: 'non_breaded' }));
+    const boneless = await store.createReview(draft({ style: 'boneless', breading: 'breaded' }));
+    expect(boneless.finalScore).toBe(boneIn.finalScore);
+    expect(boneless.baseScore).toBe(boneIn.baseScore);
+  });
+
+  it('survives a round trip through the feed', async () => {
+    const r = await store.createReview(draft({ style: 'boneless', breading: 'breaded' }));
+    const item = (await store.feed()).find((f) => f.review.id === r.id);
+    expect(item!.review.style).toBe('boneless');
+    expect(item!.review.breading).toBe('breaded');
+  });
+
+  it('reads seeded reviews as bone-in and non-breaded', async () => {
+    const feed = await store.feed();
+    expect(feed.every((f) => f.review.style === 'bone_in')).toBe(true);
+  });
+});
+
+describe('editing a review', () => {
+  it('updates details and recomputes the score', async () => {
+    const r = await store.createReview(draft());
+    expect(r.finalScore).toBe(10);
+
+    await store.updateReview(r.id, {
+      orderText: '20 wings',
+      flavourName: 'Lemon Pepper',
+      priceCents: 2500,
+      currency: 'CAD',
+      heat: 2,
+      style: 'boneless',
+      breading: 'breaded',
+      caption: 'Revised',
+      // Drop cook to the raw extreme; the total must follow.
+      scores: { ...r.scores, cookPosition: 0, cook: 0 },
+      bonuses: [],
+    });
+
+    const item = (await store.feed()).find((f) => f.review.id === r.id)!;
+    expect(item.review.orderText).toBe('20 wings');
+    expect(item.flavour.name).toBe('Lemon Pepper');
+    expect(item.review.priceCents).toBe(2500);
+    expect(item.review.heat).toBe(2);
+    expect(item.review.style).toBe('boneless');
+    expect(item.review.breading).toBe('breaded');
+    expect(item.review.caption).toBe('Revised');
+    expect(item.review.scores.cook).toBe(0);
+    expect(item.review.finalScore).toBe(7);
+  });
+
+  it('can clear a price that was previously set', async () => {
+    const r = await store.createReview(draft({ priceCents: 1899 }));
+    await store.updateReview(r.id, {
+      orderText: r.orderText,
+      flavourName: 'Mango Habanero',
+      priceCents: null,
+      currency: 'CAD',
+      heat: r.heat,
+      style: r.style,
+      breading: r.breading,
+      caption: r.caption,
+      scores: r.scores,
+      bonuses: [],
+    });
+    const item = (await store.feed()).find((f) => f.review.id === r.id)!;
+    expect(item.review.priceCents).toBeNull();
+  });
+
+  it('re-applies the bonus cap on edit', async () => {
+    const r = await store.createReview(draft());
+    await store.updateReview(r.id, {
+      orderText: r.orderText,
+      flavourName: 'Mango Habanero',
+      priceCents: null,
+      currency: 'CAD',
+      heat: r.heat,
+      style: r.style,
+      breading: r.breading,
+      caption: '',
+      scores: r.scores,
+      bonuses: [
+        { id: 'a', reason: 'one', amount: 0.5 },
+        { id: 'b', reason: 'two', amount: 0.5 },
+      ],
+    });
+    const item = (await store.feed()).find((f) => f.review.id === r.id)!;
+    expect(item.review.bonusScore).toBe(0.5);
+    expect(item.review.finalScore).toBe(10.5);
+  });
+
+  it('refuses to edit someone else’s review', async () => {
+    const theirs = (await store.reviewsByAuthor('u_maya'))[0]!;
+    await expect(
+      store.updateReview(theirs.id, {
+        orderText: 'hijacked',
+        flavourName: 'Buffalo',
+        priceCents: null,
+        currency: 'CAD',
+        heat: 1,
+        style: 'bone_in',
+        breading: 'non_breaded',
+        caption: '',
+        scores: theirs.scores,
+        bonuses: [],
+      }),
+    ).rejects.toThrow(/not yours/i);
+
+    const after = (await store.reviewsByAuthor('u_maya'))[0]!;
+    expect(after.orderText).not.toBe('hijacked');
   });
 });

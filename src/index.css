@@ -73,6 +73,11 @@ body {
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: none;
+  /* Stop iOS enlarging text on rotate, which shifts the fixed bars. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* Belt and braces with the viewport meta: no pinch-zoom of the chrome. */
+  touch-action: pan-y;
 }
 
 /* Theme changes should feel like a dissolve, not a flash. */
@@ -106,6 +111,11 @@ body * {
   /* Clears the nav and the home indicator, so the last row is never buried. */
   .app-scroll {
     padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 28px);
+  }
+
+  /* The header is fixed, so content needs to start below it. */
+  .app-content {
+    padding-top: calc(var(--safe-top) + 3.15rem);
   }
 
   .safe-bottom {

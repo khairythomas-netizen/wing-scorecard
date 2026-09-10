@@ -1,5 +1,8 @@
 import type { BonusEntry, CoreKey, ExperienceKey } from './scoring';
 
+export type WingStyle = 'bone_in' | 'boneless';
+export type Breading = 'non_breaded' | 'breaded';
+
 export type ID = string;
 export type ISODate = string;
 
@@ -97,6 +100,9 @@ export interface Review {
   currency: string;
   /** Whole 1-5 peppers. Descriptive only — never affects the score. */
   heat: 1 | 2 | 3 | 4 | 5;
+  /** Descriptive, like heat. Neither contributes to the score. */
+  style: WingStyle;
+  breading: Breading;
   scores: ReviewScores;
   bonuses: BonusEntry[];
   /** Denormalised from scores + bonuses at write time for cheap sorting. */
