@@ -11,6 +11,7 @@ import { IMAGE_WIDTHS, sized } from '../../lib/images';
 import { formatDistance, lastKnownLocation, requestLocation, type Coords } from '../../lib/location';
 import { placesProvider } from '../../lib/places';
 import { cachedPhotos, resolvePhotos } from '../../lib/places/photos';
+import { streetPhotos } from '../../lib/places/streetPhotos';
 import { ScoreBadge } from '../../components/ScoreBadge';
 
 /**
@@ -207,17 +208,21 @@ function CardFace({ card }: { card: SwipeCard }) {
   // A WingZ photo always wins: a real review of these wings beats a publicity
   // shot of the dining room. The provider only fills the gap.
   useEffect(() => {
-    if (ownPhoto || !card.place.externalId) return;
+    if (ownPhoto) return;
     let live = true;
-    void resolvePhotos(card.place.id, () =>
-      placesProvider.photos(card.place.externalId, IMAGE_WIDTHS.swipe),
-    ).then((urls) => {
+    void resolvePhotos(card.place.id, async () => {
+      // Whichever source can actually answer. The places provider only can
+      // when a paid key is configured; Mapillary is the free fallback.
+      const licensed = await placesProvider.photos(card.place.externalId, IMAGE_WIDTHS.swipe);
+      return licensed.length ? licensed : streetPhotos(card.place);
+    }).then((urls) => {
       if (live) setProviderPhoto(urls[0] ?? null);
     });
     return () => {
       live = false;
     };
-  }, [ownPhoto, card.place.id, card.place.externalId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownPhoto, card.place.id]);
 
   const photo = ownPhoto || providerPhoto;
 

@@ -107,15 +107,29 @@ To turn it on, set `VITE_GOOGLE_PLACES_KEY`:
    is normal for Places on the web and safe only with referrer restrictions.
 4. Add the key to `.env` locally and as a repository secret for the deploy.
 
-**This needs a card on file.** Google requires billing details before issuing
-a Places key, even to stay inside the free monthly allowance, and Foursquare
-puts photos behind a premium endpoint with no free tier at all. There is no
-no-card source of licensed restaurant photography, so with no key the swipe
-cards keep their placeholder and invite the first photo from a real review,
-which for a wings app is arguably the better answer anyway.
+**Photos of a restaurant's actual food are not obtainable for free.** Checked
+in September 2026: Google Places, Foursquare, Yelp and TripAdvisor all hold
+that content and all gate it behind billing details. Google is free in
+practice inside its monthly allowance but still demands a card on file; Yelp
+has no free tier at all any more. Nobody gives away another business's
+photography.
 
-The day-long cache and the WingZ-photo-first rule exist to stay inside the
-free allowance if a key is ever added.
+So the order is: a WingZ review photo first, then a licensed provider photo if
+`VITE_GOOGLE_PLACES_KEY` is set, then **Mapillary** street-level imagery via
+`VITE_MAPILLARY_TOKEN`. Mapillary is free, needs no card, and is indexed by
+coordinate. Get a token at mapillary.com/dashboard/developers.
+
+It is the weakest of the three and deliberately last: what it returns is the
+storefront from the pavement, not a plate of wings. Left off unless a token is
+set. Mapillary hands back every
+frame within 50 metres pointing wherever the camera happened to face, so
+`bearing.ts` computes the direction from each camera to the restaurant and
+keeps only the frames actually aimed at it, closest-aimed first. A camera more
+than 60 degrees off is discarded: a confident photo of the wrong building is
+worse than the placeholder.
+
+The day-long cache and the WingZ-photo-first rule keep request counts low
+whichever source is in play.
 
 ### Data and auth
 

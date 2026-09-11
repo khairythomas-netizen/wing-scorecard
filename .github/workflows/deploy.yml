@@ -34,6 +34,7 @@ jobs:
           # Both provider keys are optional. Without them the app runs on the
           # mock places/map adapters.
           VITE_GOOGLE_PLACES_KEY: ${{ secrets.VITE_GOOGLE_PLACES_KEY }}
+          VITE_MAPILLARY_TOKEN: ${{ secrets.VITE_MAPILLARY_TOKEN }}
           VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
 
       # A missing env var here is invisible: the build still succeeds and
