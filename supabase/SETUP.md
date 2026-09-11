@@ -39,6 +39,27 @@ handles it — signup shows a "check your email" screen. To skip the inbox
 round-trip while testing, turn it off and signup will sign you straight in.
 This project currently has it off, so new accounts are usable immediately.
 
+### Sending email
+
+Auth emails (password resets, email changes) go through **MailerSend**, set up
+under Authentication → Emails → SMTP Settings.
+
+| | |
+| --- | --- |
+| Host | `smtp.mailersend.net`, port 587 |
+| Sender | `wingz@test-p7kx4xw35qvg9yjr.mlsender.net`, shown as WingZ |
+
+The sender has to sit on a domain MailerSend has verified. Sending as a
+personal address is not possible: sender identities are a paid feature, and
+an outlook.com or gmail.com from-address fails the authentication checks
+Gmail and Yahoo now enforce, because nobody here controls those domains.
+
+**The account is still in sandbox, which only delivers to the account owner's
+address.** Password resets will not reach anyone else until the account is
+approved for general sending, and that needs a real domain. Buying one is the
+single change that fixes this, the ugly trial sender above, and the Supabase
+hostname on the Google consent screen.
+
 Google and Apple sign-in are optional and configured entirely in their own
 dashboards. See [SOCIAL_SIGNIN.md](SOCIAL_SIGNIN.md). The app shows only the
 providers that are actually switched on, so there is nothing to deploy: finish
