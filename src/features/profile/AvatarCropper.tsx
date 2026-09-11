@@ -126,13 +126,16 @@ export function AvatarCropper({
   return (
     <div className="fixed inset-0 z-[950] flex flex-col bg-black text-white">
       <div className="safe-top flex items-center justify-between px-4 pb-3">
+        {/* Back rather than a close cross: this screen sits between the photo
+            picker and Edit Profile, and leaving it means going back a step,
+            not abandoning the whole thing. */}
         <button
           onClick={onCancel}
-          aria-label="Cancel"
+          aria-label="Back"
           className="grid h-11 w-11 place-items-center rounded-full bg-white/10 active:bg-white/20"
         >
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <path d="M6 6l12 12M18 6L6 18" />
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 5l-7 7 7 7" />
           </svg>
         </button>
 

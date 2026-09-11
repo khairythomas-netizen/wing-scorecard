@@ -107,8 +107,15 @@ To turn it on, set `VITE_GOOGLE_PLACES_KEY`:
    is normal for Places on the web and safe only with referrer restrictions.
 4. Add the key to `.env` locally and as a repository secret for the deploy.
 
-Google bills Places per request and includes a monthly free allowance. The
-day-long cache and the WingZ-photo-first rule exist to stay inside it.
+**This needs a card on file.** Google requires billing details before issuing
+a Places key, even to stay inside the free monthly allowance, and Foursquare
+puts photos behind a premium endpoint with no free tier at all. There is no
+no-card source of licensed restaurant photography, so with no key the swipe
+cards keep their placeholder and invite the first photo from a real review,
+which for a wings app is arguably the better answer anyway.
+
+The day-long cache and the WingZ-photo-first rule exist to stay inside the
+free allowance if a key is ever added.
 
 ### Data and auth
 
