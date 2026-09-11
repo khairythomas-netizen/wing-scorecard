@@ -13,6 +13,40 @@ import type {
   WingFlavour,
 } from '../types';
 
+export type NotificationKind =
+  | 'like'
+  | 'comment'
+  | 'follow'
+  | 'follow_request'
+  | 'follow_accepted';
+
+export interface AppNotification {
+  id: ID;
+  kind: NotificationKind;
+  /** Null when the account that caused it has since been deleted. */
+  actor: Profile | null;
+  reviewId: ID | null;
+  /** The first photo of the review it concerns, for a thumbnail. */
+  reviewPhotoUrl: string | null;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface NotificationPrefs {
+  likes: boolean;
+  comments: boolean;
+  follows: boolean;
+  followRequests: boolean;
+}
+
+export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+  likes: true,
+  comments: true,
+  follows: true,
+  followRequests: true,
+};
+
+
 /** A pending request to follow a private account, with who is asking. */
 export interface PendingFollowRequest {
   id: ID;
@@ -166,6 +200,13 @@ export interface WingzStore {
    * the same folder-per-user storage rule.
    */
   uploadAvatar(file: File): Promise<string>;
+
+  /** Newest first. */
+  listNotifications(): Promise<AppNotification[]>;
+  unreadNotificationCount(): Promise<number>;
+  markNotificationsRead(): Promise<void>;
+  notificationPrefs(): Promise<NotificationPrefs>;
+  setNotificationPrefs(prefs: NotificationPrefs): Promise<void>;
   listWantToTry(): Promise<(WantToTryEntry & { place: Place; flavour: WingFlavour | null })[]>;
 
   rankings(filters: RankingFilters): Promise<FeedItem[]>;

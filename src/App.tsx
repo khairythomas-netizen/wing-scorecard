@@ -3,9 +3,11 @@ import { BottomNav, DEFAULT_TAB, isTabId, type TabId } from './components/Bottom
 
 const RESUME_TAB_KEY = 'wingz:resume-tab';
 import { BrandLockup } from './components/Brand';
-import { MoonIcon, RefreshIcon, SunIcon } from './components/Icons';
+import { BellIcon, GearIcon, MoonIcon, RefreshIcon, SunIcon } from './components/Icons';
 import { Spinner } from './components/States';
 import { AuthScreen } from './features/auth/AuthScreen';
+import { NotificationsScreen } from './features/notifications/NotificationsScreen';
+import { SettingsScreen } from './features/settings/SettingsScreen';
 import { NewPassword } from './features/auth/NewPassword';
 import { UsernameScreen } from './features/auth/UsernameScreen';
 import { DiscoverScreen } from './features/discover/DiscoverScreen';
@@ -17,7 +19,7 @@ import { ProfileScreen } from './features/profile/ProfileScreen';
 import { RankingsScreen } from './features/rankings/RankingsScreen';
 import { RateScreen } from './features/rate/RateScreen';
 import { AuthProvider, useAuth } from './hooks/useAuth';
-import { StoreContext, store } from './hooks/useStore';
+import { StoreContext, store, useQuery } from './hooks/useStore';
 import { ToastProvider, useToast } from './hooks/useToast';
 import { ThemeProvider, useTheme } from './hooks/useTheme';
 import { applyUpdate, onUpdateAvailable } from './lib/pwa';
@@ -103,6 +105,10 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
   const [peopleOpen, setPeopleOpen] = useState(false);
   // Which post is open, and which tab to return to when it closes.
   const [openPost, setOpenPost] = useState<{ id: string; from: TabId } | null>(null);
+  // Notifications and Settings are overlays rather than tabs: the bottom nav is
+  // five across already, and neither is somewhere you browse.
+  const [overlay, setOverlay] = useState<'notifications' | 'settings' | null>(null);
+  const unreadCount = useQuery([], (s) => s.unreadNotificationCount()).data ?? 0;
   const [editingPost, setEditingPost] = useState<string | null>(null);
 
   useEffect(() => onUpdateAvailable(setUpdateReady), []);
@@ -114,6 +120,7 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
     (next: TabId) => {
       setOpenPost(null);
       setEditingPost(null);
+      setOverlay(null);
       setTab(next);
       if (next === 'profile' && user?.id) setProfileId(user.id);
       window.scrollTo({ top: 0 });
@@ -122,6 +129,7 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
   );
 
   const openProfile = useCallback((id: string) => {
+    setOverlay(null);
     setOpenPost(null);
     setProfileId(id);
     setTab('profile');
@@ -166,10 +174,28 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
         <div className="flex items-center gap-2">
           {client.requiresSignIn && (
             <button
-              onClick={() => void client.signOut()}
-              className="rounded-full border border-line bg-surface px-3 py-2 text-[11px] font-extrabold text-muted"
+              onClick={() => setOverlay(overlay === 'notifications' ? null : 'notifications')}
+              aria-label={
+                unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
+              }
+              className="relative grid h-9 w-9 place-items-center rounded-full border border-line bg-surface"
             >
-              Sign out
+              <BellIcon className="h-[18px] w-[18px]" />
+              {unreadCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-orange px-1 text-[9px] font-black text-white">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+          )}
+          {client.requiresSignIn && (
+            <button
+              onClick={() => setOverlay(overlay === 'settings' ? null : 'settings')}
+              aria-label="Settings"
+              aria-pressed={overlay === 'settings'}
+              className="grid h-9 w-9 place-items-center rounded-full border border-line bg-surface"
+            >
+              <GearIcon className="h-[18px] w-[18px]" />
             </button>
           )}
           <button
@@ -197,7 +223,21 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
       </header>
 
       <main>
-        {editingPost ? (
+        {overlay === 'notifications' ? (
+          <NotificationsScreen
+            onOpenProfile={(id) => {
+              setOverlay(null);
+              openProfile(id);
+            }}
+            onOpenPost={(id) => {
+              setOverlay(null);
+              setOpenPost({ id, from: tab });
+              window.scrollTo({ top: 0 });
+            }}
+          />
+        ) : overlay === 'settings' ? (
+          <SettingsScreen />
+        ) : editingPost ? (
           <EditPost
             reviewId={editingPost}
             onDone={() => {

@@ -422,6 +422,137 @@ drop policy if exists wtt_own on want_to_try;
 create policy wtt_own on want_to_try for all using (user_id = auth.uid());
 
 
+-- ----------------------------------------------------------- notifications
+
+-- Per-person switches. Kept as columns rather than a settings blob so a
+-- trigger can check one cheaply while deciding whether to write a row at all.
+create table if not exists notification_prefs (
+  user_id          uuid primary key references profiles on delete cascade,
+  likes            boolean not null default true,
+  comments         boolean not null default true,
+  follows          boolean not null default true,
+  follow_requests  boolean not null default true
+);
+
+create table if not exists notifications (
+  id           uuid primary key default gen_random_uuid(),
+  -- Who sees it.
+  user_id      uuid not null references profiles on delete cascade,
+  -- Who caused it. Null once that account is gone; the notification survives
+  -- rather than vanishing from someone's history.
+  actor_id     uuid references profiles on delete set null,
+  kind         text not null
+                 check (kind in ('like','comment','follow','follow_request','follow_accepted')),
+  review_id    uuid references reviews on delete cascade,
+  comment_id   uuid references comments on delete cascade,
+  read_at      timestamptz,
+  created_at   timestamptz not null default now()
+);
+create index if not exists notifications_user_idx
+  on notifications (user_id, created_at desc);
+create index if not exists notifications_unread_idx
+  on notifications (user_id) where read_at is null;
+
+alter table notifications      enable row level security;
+alter table notification_prefs enable row level security;
+
+-- Yours and nobody else's. There is no insert policy on purpose: rows are
+-- written by triggers running as definer, so nobody can forge a notification.
+drop policy if exists notifications_read on notifications;
+create policy notifications_read on notifications for select using (user_id = auth.uid());
+drop policy if exists notifications_update on notifications;
+create policy notifications_update on notifications for update using (user_id = auth.uid());
+drop policy if exists notifications_delete on notifications;
+create policy notifications_delete on notifications for delete using (user_id = auth.uid());
+
+drop policy if exists nprefs_all on notification_prefs;
+create policy nprefs_all on notification_prefs for all
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- One helper so every trigger asks the question the same way. A missing prefs
+-- row means the person has never touched the settings, which is "on".
+create or replace function wants_notification(p_user uuid, p_kind text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select case p_kind
+       when 'like' then likes
+       when 'comment' then comments
+       when 'follow' then follows
+       when 'follow_accepted' then follows
+       when 'follow_request' then follow_requests
+       else true
+     end
+     from notification_prefs where user_id = p_user),
+    true
+  );
+$$;
+
+create or replace function notify(
+  p_user uuid, p_actor uuid, p_kind text, p_review uuid, p_comment uuid
+) returns void language plpgsql security definer set search_path = public as $$
+begin
+  -- Nobody needs telling about their own actions.
+  if p_user is null or p_user = p_actor then return; end if;
+  if not wants_notification(p_user, p_kind) then return; end if;
+  insert into notifications (user_id, actor_id, kind, review_id, comment_id)
+  values (p_user, p_actor, p_kind, p_review, p_comment);
+end $$;
+
+create or replace function on_like_added() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  perform notify(
+    (select author_id from reviews where id = new.review_id),
+    new.user_id, 'like', new.review_id, null
+  );
+  return new;
+end $$;
+
+create or replace function on_comment_added() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  perform notify(
+    (select author_id from reviews where id = new.review_id),
+    new.author_id, 'comment', new.review_id, new.id
+  );
+  return new;
+end $$;
+
+create or replace function on_follow_added() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  -- Approving a request inserts here too, so tell the requester they are in.
+  perform notify(new.followee_id, new.follower_id, 'follow', null, null);
+  perform notify(new.follower_id, new.followee_id, 'follow_accepted', null, null);
+  return new;
+end $$;
+
+create or replace function on_follow_requested() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  perform notify(new.target_id, new.requester_id, 'follow_request', null, null);
+  return new;
+end $$;
+
+drop trigger if exists likes_notify on likes;
+create trigger likes_notify after insert on likes
+  for each row execute function on_like_added();
+
+drop trigger if exists comments_notify on comments;
+create trigger comments_notify after insert on comments
+  for each row execute function on_comment_added();
+
+drop trigger if exists follows_notify on follows;
+create trigger follows_notify after insert on follows
+  for each row execute function on_follow_added();
+
+drop trigger if exists follow_requests_notify on follow_requests;
+create trigger follow_requests_notify after insert on follow_requests
+  for each row execute function on_follow_requested();
+
+grant execute on function wants_notification(uuid, text) to authenticated;
+
+
 -- =====================================================================
 -- PART 2: auth, storage and write-side RPCs
 -- =====================================================================

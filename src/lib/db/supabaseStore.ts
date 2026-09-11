@@ -1,3 +1,7 @@
+import {
+  DEFAULT_NOTIFICATION_PREFS,
+  type AppNotification,
+} from './store';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { toProfile } from '../auth/supabaseAuth';
 import { buildCityList, placeIsInCity } from '../cities';
@@ -829,6 +833,102 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
       const uid = me();
       if (!uid || !body.trim()) return;
       fail('Add comment', (await client.from('comments').insert({ review_id: reviewId, author_id: uid, body: body.trim() })).error);
+      notify();
+    },
+
+    async listNotifications() {
+      const uid = me();
+      if (!uid) return [];
+      const { data } = await client
+        .from('notifications')
+        .select(
+          'id, kind, review_id, read_at, created_at, ' +
+            'actor:profiles!notifications_actor_id_fkey(id, username, display_name, bio, avatar_url, is_private), ' +
+            'review:reviews(photos:review_photos(url))',
+        )
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      return (data ?? []).map((row) => {
+        const r = row as unknown as {
+          id: string;
+          kind: AppNotification['kind'];
+          review_id: string | null;
+          read_at: string | null;
+          created_at: string;
+          actor: Record<string, unknown> | null;
+          review: { photos?: { url: string }[] } | null;
+        };
+        return {
+          id: r.id,
+          kind: r.kind,
+          actor: r.actor ? toProfile(r.actor as never) : null,
+          reviewId: r.review_id,
+          reviewPhotoUrl: r.review?.photos?.[0]?.url ?? null,
+          read: r.read_at != null,
+          createdAt: r.created_at,
+        } satisfies AppNotification;
+      });
+    },
+
+    async unreadNotificationCount() {
+      const uid = me();
+      if (!uid) return 0;
+      const { count } = await client
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', uid)
+        .is('read_at', null);
+      return count ?? 0;
+    },
+
+    async markNotificationsRead() {
+      const uid = me();
+      if (!uid) return;
+      await client
+        .from('notifications')
+        .update({ read_at: new Date().toISOString() })
+        .eq('user_id', uid)
+        .is('read_at', null);
+      notify();
+    },
+
+    async notificationPrefs() {
+      const uid = me();
+      if (!uid) return DEFAULT_NOTIFICATION_PREFS;
+      const { data } = await client
+        .from('notification_prefs')
+        .select('likes, comments, follows, follow_requests')
+        .eq('user_id', uid)
+        .maybeSingle();
+      if (!data) return DEFAULT_NOTIFICATION_PREFS;
+      const row = data as {
+        likes: boolean; comments: boolean; follows: boolean; follow_requests: boolean;
+      };
+      return {
+        likes: row.likes,
+        comments: row.comments,
+        follows: row.follows,
+        followRequests: row.follow_requests,
+      };
+    },
+
+    async setNotificationPrefs(prefs) {
+      const uid = me();
+      if (!uid) return;
+      fail(
+        'Save notification settings',
+        (
+          await client.from('notification_prefs').upsert({
+            user_id: uid,
+            likes: prefs.likes,
+            comments: prefs.comments,
+            follows: prefs.follows,
+            follow_requests: prefs.followRequests,
+          })
+        ).error,
+      );
       notify();
     },
 

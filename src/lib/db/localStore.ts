@@ -10,6 +10,7 @@ import { placesProvider } from '../places';
 import { normalizeName } from '../places/provider';
 import { distanceKm } from '../location';
 import { effectiveDistance } from './deckOrder';
+import { DEFAULT_NOTIFICATION_PREFS } from './store';
 import { filterUnseen, interleave, type SwipeCard } from './swipe';
 import { calculateScore, round1, type BonusEntry } from '../scoring';
 import type {
@@ -681,6 +682,19 @@ export function createLocalStore(): WingzStore {
       review.commentCount += 1;
       commit();
     },
+
+    // Demo mode has one user and nobody to be notified by.
+    async listNotifications() {
+      return [];
+    },
+    async unreadNotificationCount() {
+      return 0;
+    },
+    async markNotificationsRead() {},
+    async notificationPrefs() {
+      return DEFAULT_NOTIFICATION_PREFS;
+    },
+    async setNotificationPrefs() {},
 
     async uploadAvatar(file: File) {
 
