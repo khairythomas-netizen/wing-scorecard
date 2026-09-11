@@ -9,6 +9,7 @@ import { buildCityList, placeIsInCity } from '../cities';
 import { placesProvider } from '../places';
 import { normalizeName } from '../places/provider';
 import { distanceKm } from '../location';
+import { effectiveDistance } from './deckOrder';
 import { filterUnseen, interleave, type SwipeCard } from './swipe';
 import { calculateScore, round1, type BonusEntry } from '../scoring';
 import type {
@@ -621,7 +622,8 @@ export function createLocalStore(): WingzStore {
           })
           // Somewhere the user has already reviewed is not a discovery.
           .filter((c) => !statsForPlace(c.place).reviewedByMe)
-          .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
+          // Photos WingZ already has should not be the hardest to reach.
+          .sort((a, b) => effectiveDistance(a) - effectiveDistance(b));
       }
 
       return filterUnseen(interleave(nearbyCards, friendCards));

@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { toProfile } from '../auth/supabaseAuth';
 import { buildCityList, placeIsInCity } from '../cities';
 import { distanceKm } from '../location';
+import { effectiveDistance } from './deckOrder';
 import { placesProvider } from '../places';
 import { filterUnseen, interleave, type SwipeCard } from './swipe';
 import { prepareImage } from '../images';
@@ -756,7 +757,8 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
             // Somewhere already reviewed by this user is not a discovery.
             .filter((x) => !x.mine)
             .map((x) => x.card)
-            .sort((a, b) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
+            // Photos WingZ already has should not be the hardest to reach.
+            .sort((a, b) => effectiveDistance(a) - effectiveDistance(b));
         }
       }
 
