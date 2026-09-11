@@ -43,6 +43,11 @@ create table if not exists follows (
 );
 create index if not exists follows_followee_idx on follows (followee_id);
 
+-- New accounts start private, so nobody's first post is public by accident.
+-- Set as a default rather than a backfill: existing accounts keep whatever
+-- their owner already chose.
+alter table profiles alter column is_private set default true;
+
 create table if not exists follow_requests (
   id            uuid primary key default gen_random_uuid(),
   requester_id  uuid not null references profiles on delete cascade,
@@ -314,7 +319,14 @@ create policy profiles_update on profiles for update using (id = auth.uid());
 drop policy if exists follows_read on follows;
 create policy follows_read on follows for select using (true);
 drop policy if exists follows_insert on follows;
-create policy follows_insert on follows for insert with check (follower_id = auth.uid());
+-- Following a private account has to go through a request the owner approves.
+-- Checking that only in the client would be theatre: anyone can POST to the
+-- REST endpoint directly, and a follows row is what unlocks their posts.
+-- approve_follow_request runs as definer, so approvals still insert fine.
+create policy follows_insert on follows for insert with check (
+  follower_id = auth.uid()
+  and not coalesce((select is_private from profiles where id = followee_id), true)
+);
 drop policy if exists follows_delete on follows;
 create policy follows_delete on follows for delete using (follower_id = auth.uid());
 

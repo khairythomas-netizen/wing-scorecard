@@ -830,6 +830,24 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
       notify();
     },
 
+    async uploadAvatar(file) {
+      const uid = me();
+      if (!uid) throw new Error('Not signed in');
+
+      const prepared = await prepareImage(file);
+      const ext = (prepared.file.name.split('.').pop() ?? 'jpg').toLowerCase();
+      const path = `${uid}/avatar-${Date.now()}.${ext}`;
+
+      const { error } = await client.storage.from(PHOTO_BUCKET).upload(path, prepared.file, {
+        contentType: prepared.file.type,
+        upsert: false,
+        cacheControl: '31536000',
+      });
+      fail('Avatar upload', error);
+
+      return client.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
+    },
+
     async toggleWantToTry(placeId, flavourId, sourceReviewId) {
       const uid = me();
       if (!uid) return false;

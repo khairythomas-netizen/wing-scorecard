@@ -1,5 +1,4 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { Chip, ChipRow } from '../../components/Chip';
 import { HeatMeter } from '../../components/HeatMeter';
 import { ScoreBadge } from '../../components/ScoreBadge';
 import { IMAGE_WIDTHS, sized } from '../../lib/images';
@@ -7,23 +6,15 @@ import { Spinner } from '../../components/States';
 import { useQuery, useStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
 import { mapProvider, type MapMarker, type MapViewport } from '../../lib/map';
-import type { DiscoverFilters } from '../../lib/db/store';
+import {
+  activeMapFilterCount,
+  DEFAULT_MAP_FILTERS,
+  FunnelIcon,
+  HEAT_BANDS,
+  MapFilterPanel,
+  type MapFilterState,
+} from './MapFilters';
 import type { Theme } from '../../hooks/useTheme';
-
-const OWNERS: { id: DiscoverFilters['owner']; label: string }[] = [
-  { id: 'mine+friends', label: 'Mine + Friends' },
-  { id: 'mine', label: 'Mine' },
-  { id: 'friends', label: 'Friends' },
-  { id: 'everyone', label: 'Everyone' },
-  { id: 'wantToTry', label: 'Want to Try' },
-];
-
-const HEAT_BANDS: { label: string; min: number; max: number }[] = [
-  { label: 'Any heat', min: 1, max: 5 },
-  { label: '🌶️ 1–2', min: 1, max: 2 },
-  { label: '🌶️ 3–5', min: 3, max: 5 },
-  { label: '🌶️ 4+', min: 4, max: 5 },
-];
 
 const LEGEND: [string, string, string][] = [
   ['Mine', 'bg-orange', 'mine'],
@@ -37,10 +28,10 @@ export function MapMode({ theme }: { theme: Theme }) {
   const toast = useToast();
   const { Surface } = mapProvider;
 
-  const [owner, setOwner] = useState<DiscoverFilters['owner']>('mine+friends');
-  const [band, setBand] = useState(0);
-  const [minScore, setMinScore] = useState(0);
+  const [filters, setFilters] = useState<MapFilterState>(DEFAULT_MAP_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const { owner, band, minScore } = filters;
   const [viewport, setViewport] = useState<MapViewport>({
     center: { lat: 43.6597, lng: -79.4056 },
     zoom: 12,
@@ -106,34 +97,16 @@ export function MapMode({ theme }: { theme: Theme }) {
   );
   const detail = detailQuery.data ?? null;
 
+  const activeFilters = activeMapFilterCount(filters);
+
   return (
     <div>
-      <ChipRow>
-        {OWNERS.map((o) => (
-          <Chip key={o.id} active={owner === o.id} onClick={() => setOwner(o.id)}>
-            {o.label}
-          </Chip>
-        ))}
-      </ChipRow>
-      <ChipRow>
-        {HEAT_BANDS.map((b, i) => (
-          <Chip key={b.label} active={band === i} onClick={() => setBand(i)}>
-            {b.label}
-          </Chip>
-        ))}
-        {[0, 8, 9].map((s) => (
-          <Chip key={s} active={minScore === s} onClick={() => setMinScore(s)}>
-            {s === 0 ? 'Any score' : `${s}+`}
-          </Chip>
-        ))}
-      </ChipRow>
-
       <div className="relative mx-3 overflow-hidden rounded-xl3 border border-line shadow-card">
         {/* The map engine is lazy-loaded, so hold its space while it arrives
             rather than collapsing the layout. */}
         <Suspense
           fallback={
-            <div className="grid h-[58vh] min-h-[400px] place-items-center bg-[var(--map)]">
+            <div className="map-fill grid place-items-center bg-[var(--map)]">
               <Spinner label="Loading map" />
             </div>
           }
@@ -147,13 +120,17 @@ export function MapMode({ theme }: { theme: Theme }) {
               userMoved.current = true;
               setViewport(v);
             }}
-            className="h-[62vh] min-h-[440px]"
+            className="map-fill"
           />
         </Suspense>
 
-        {/* A compact horizontal key: the old stacked block ate a corner of
-            the map on a phone. */}
-        <div className="pointer-events-none absolute left-2 top-2 z-[600] flex flex-wrap gap-x-2.5 gap-y-1 rounded-full border border-line bg-[var(--glass)] px-2.5 py-1.5 backdrop-blur">
+        {/* Bottom left, because top left is where Leaflet puts its zoom
+            buttons and the two were sitting on top of each other. Hidden
+            while a place card is open, which occupies the same corner. */}
+        <div
+          hidden={Boolean(detail)}
+          className="pointer-events-none absolute bottom-2 left-2 z-[600] flex max-w-[calc(100%-5rem)] flex-wrap gap-x-2.5 gap-y-1 rounded-2xl border border-line bg-[var(--glass)] px-2.5 py-1.5 backdrop-blur"
+        >
           {LEGEND.map(([label, cls]) => (
             <span key={label} className="flex items-center gap-1 text-[9px] font-bold text-muted">
               <span className={`h-1.5 w-1.5 rounded-full ${cls}`} />
@@ -161,6 +138,38 @@ export function MapMode({ theme }: { theme: Theme }) {
             </span>
           ))}
         </div>
+
+        {/* One control instead of two rows of chips. Tapping the map closes
+            the panel, so the filters never sit between you and the pins. */}
+        <button
+          onClick={() => setFiltersOpen((v) => !v)}
+          aria-expanded={filtersOpen}
+          aria-label="Filters"
+          className="absolute right-2 top-2 z-[700] flex items-center gap-1.5 rounded-full border border-line bg-[var(--glass)] px-3 py-2 text-[11px] font-extrabold shadow-card backdrop-blur"
+        >
+          <FunnelIcon />
+          Filters
+          {activeFilters > 0 && (
+            <span className="grid h-4 min-w-4 place-items-center rounded-full bg-orange px-1 text-[9px] font-black text-white">
+              {activeFilters}
+            </span>
+          )}
+        </button>
+
+        {filtersOpen && (
+          <>
+            <button
+              aria-label="Close filters"
+              onClick={() => setFiltersOpen(false)}
+              className="absolute inset-0 z-[650] cursor-default"
+            />
+            <MapFilterPanel
+              value={filters}
+              onChange={setFilters}
+              onClose={() => setFiltersOpen(false)}
+            />
+          </>
+        )}
 
         {detail && (
           <div className="animate-rise absolute inset-x-2 bottom-2 z-[600] rounded-xl3 border border-line bg-[var(--glass)] p-3 shadow-card backdrop-blur-xl">

@@ -156,6 +156,13 @@ export interface WingzStore {
   addComment(reviewId: ID, body: string): Promise<void>;
 
   toggleWantToTry(placeId: ID, flavourId: ID | null, sourceReviewId: ID | null): Promise<boolean>;
+
+  /**
+   * Store an avatar and return its public URL. It lives with the photo
+   * plumbing rather than the auth client because it is the same bucket and
+   * the same folder-per-user storage rule.
+   */
+  uploadAvatar(file: File): Promise<string>;
   listWantToTry(): Promise<(WantToTryEntry & { place: Place; flavour: WingFlavour | null })[]>;
 
   rankings(filters: RankingFilters): Promise<FeedItem[]>;

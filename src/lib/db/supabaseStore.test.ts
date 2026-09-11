@@ -219,6 +219,29 @@ describe('schema and types agree', () => {
 
     expect(dbProviders).toEqual(tsProviders);
   });
+
+  it('following a private account cannot bypass the request flow', async () => {
+    // Verified against the live database before this was written: a stranger
+    // could POST straight to /rest/v1/follows with a private account's id and
+    // get a 201, which granted them that account's posts immediately. The
+    // client-side "is it private?" branch was the only thing asking.
+    const fs = await import('node:fs/promises');
+    const schema = await fs.readFile('supabase/schema.sql', 'utf8');
+
+    const policy = schema.match(/create policy follows_insert on follows[\s\S]*?\);/)?.[0];
+    expect(policy).toBeTruthy();
+    expect(policy).toContain('is_private');
+    // coalesce, so a missing profile row is treated as private rather than
+    // letting a null collapse the check into "allowed".
+    expect(policy).toContain('coalesce');
+  });
+
+  it('new accounts default to private', async () => {
+    const fs = await import('node:fs/promises');
+    const schema = await fs.readFile('supabase/schema.sql', 'utf8');
+    expect(schema).toContain('alter table profiles alter column is_private set default true;');
+  });
+
   it('setup.sql is still schema.sql plus auth.sql, verbatim', async () => {
     // setup.sql is the file people actually paste into the SQL editor. It is a
     // concatenation of the other two, which means an edit to one of them that

@@ -7,6 +7,7 @@ import type { Theme } from '../../hooks/useTheme';
 import { compact } from '../../lib/format';
 import { IMAGE_WIDTHS, sized } from '../../lib/images';
 import { RankingsScreen } from '../rankings/RankingsScreen';
+import { EditProfile } from './EditProfile';
 import { FollowRequests } from './FollowRequests';
 
 type Tab = 'posts' | 'rankings' | 'map';
@@ -24,6 +25,7 @@ export function ProfileScreen({
 }) {
   const store = useStore();
   const [tab, setTab] = useState<Tab>('posts');
+  const [editing, setEditing] = useState(false);
   const [viewport, setViewport] = useState<MapViewport>({
     center: { lat: 43.6597, lng: -79.4056 },
     zoom: 11,
@@ -84,7 +86,10 @@ export function ProfileScreen({
 
         <div className="mt-4">
           {isMe ? (
-            <button className="w-full rounded-xl border border-line bg-surface py-2.5 text-xs font-extrabold">
+            <button
+              onClick={() => setEditing(true)}
+              className="w-full rounded-xl border border-line bg-surface py-2.5 text-xs font-extrabold"
+            >
               Edit profile
             </button>
           ) : (
@@ -109,6 +114,8 @@ export function ProfileScreen({
           )}
         </div>
       </div>
+
+      {editing && <EditProfile profile={profile} onClose={() => setEditing(false)} />}
 
       {isMe && onOpenProfile && <FollowRequests onOpenProfile={onOpenProfile} />}
 

@@ -680,6 +680,15 @@ export function createLocalStore(): WingzStore {
       commit();
     },
 
+    async uploadAvatar(file: File) {
+
+      // Demo mode has nowhere to put bytes, so keep the image in the tab.
+
+      return URL.createObjectURL(file);
+
+    },
+
+
     async toggleWantToTry(placeId, flavourId, sourceReviewId) {
       const i = db.wantToTry.findIndex((w) => w.userId === me() && w.placeId === placeId);
       let on: boolean;

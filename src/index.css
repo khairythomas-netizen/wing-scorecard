@@ -128,6 +128,16 @@ body * {
     padding-bottom: calc(var(--safe-bottom) + 1.5rem);
   }
 
+  /* The map screen gives everything it can to the map: the whole viewport
+     minus the fixed header, the fixed nav, both safe-area insets and the
+     Map/Swipe toggle sitting above it. */
+  .map-fill {
+    height: calc(
+      100dvh - var(--safe-top) - 3.15rem - var(--nav-height) - var(--safe-bottom) - 4.15rem
+    );
+    min-height: 320px;
+  }
+
   /* Anything pinned directly above the bottom nav. */
   .above-nav {
     bottom: calc(var(--nav-height) + var(--safe-bottom) + 12px);
