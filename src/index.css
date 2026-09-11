@@ -118,6 +118,14 @@ body * {
     padding-top: calc(var(--safe-top) + 3.15rem);
   }
 
+  /* For anything that starts at the very top of the screen instead of below
+     the fixed header, such as a full-screen sheet. Like the rules above it
+     bakes in its own padding: a `pt-*` utility alongside it would win and
+     silently drop the notch inset. */
+  .safe-top {
+    padding-top: calc(var(--safe-top) + 0.7rem);
+  }
+
   .safe-bottom {
     padding-bottom: var(--safe-bottom);
   }

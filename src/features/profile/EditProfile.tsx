@@ -106,7 +106,7 @@ export function EditProfile({ profile, onClose }: { profile: Profile; onClose: (
         </button>
       </div>
 
-      <div className="app-scroll flex-1 px-4 py-5">
+      <div className="safe-bottom flex-1 overflow-y-auto px-4 pb-10 pt-5">
         <div className="flex flex-col items-center">
           {avatarUrl ? (
             <img
