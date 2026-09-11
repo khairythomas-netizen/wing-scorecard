@@ -13,6 +13,10 @@ const latency = <T>(value: T, ms = 120): Promise<T> =>
 export const mockPlacesProvider: PlacesProvider = {
   name: 'mock',
 
+  async photos() {
+    return [];
+  },
+
   async autocomplete(query) {
     const q = normalizeName(query);
     if (!q) return latency<PlaceSuggestion[]>([]);

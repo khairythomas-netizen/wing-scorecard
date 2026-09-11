@@ -9,6 +9,8 @@ import { markSwiped, resetSwiped, type SwipeCard } from '../../lib/db/swipe';
 import { formatPrice } from '../../lib/format';
 import { IMAGE_WIDTHS, sized } from '../../lib/images';
 import { formatDistance, lastKnownLocation, requestLocation, type Coords } from '../../lib/location';
+import { placesProvider } from '../../lib/places';
+import { cachedPhotos, resolvePhotos } from '../../lib/places/photos';
 import { ScoreBadge } from '../../components/ScoreBadge';
 
 /**
@@ -197,15 +199,37 @@ export function SwipeMode() {
 }
 
 function CardFace({ card }: { card: SwipeCard }) {
-  const photo = sized(card.photoUrl ?? undefined, IMAGE_WIDTHS.swipe);
+  const ownPhoto = sized(card.photoUrl ?? undefined, IMAGE_WIDTHS.swipe);
+  const [providerPhoto, setProviderPhoto] = useState<string | null>(() =>
+    cachedPhotos(card.place.id)?.[0] ?? null,
+  );
+
+  // A WingZ photo always wins: a real review of these wings beats a publicity
+  // shot of the dining room. The provider only fills the gap.
+  useEffect(() => {
+    if (ownPhoto || !card.place.externalId) return;
+    let live = true;
+    void resolvePhotos(card.place.id, () =>
+      placesProvider.photos(card.place.externalId, IMAGE_WIDTHS.swipe),
+    ).then((urls) => {
+      if (live) setProviderPhoto(urls[0] ?? null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [ownPhoto, card.place.id, card.place.externalId]);
+
+  const photo = ownPhoto || providerPhoto;
 
   return (
     <>
       {photo ? (
         <img src={photo} alt="" draggable={false} className="h-full w-full select-none object-cover" />
       ) : (
-        // No WingZ photo for this place yet. A designed placeholder is honest;
-        // pulling an image from somewhere we have no right to would not be.
+        // Nothing from WingZ and nothing licensed from the provider. A designed
+        // placeholder is honest; taking an image from the restaurant's own site
+        // or Instagram would be neither permitted nor, from a static site,
+        // technically possible.
         <div
           className="grid h-full w-full place-items-center"
           style={{

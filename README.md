@@ -82,6 +82,34 @@ with seeded real coordinates:
 Going live is a change in `src/lib/places/index.ts` / `src/lib/map/index.ts`
 only. No screen imports a vendor. See `.env.example`.
 
+### Restaurant photos
+
+Swipe shows wing places nobody has reviewed yet, and those have no WingZ photo
+by definition. A photo from the places provider fills the gap, cached for a
+day in `src/lib/places/photos.ts` so the same restaurant is never billed twice.
+
+A WingZ photo always wins over a provider one. A real review of the wings
+beats a publicity shot of the dining room.
+
+These photos are **licensed from the provider, never scraped**. A restaurant's
+own site and Instagram are copyrighted, Instagram's terms prohibit automated
+collection, and from a static site it is not even possible: the browser blocks
+reading another origin. A provider with no photo licence returns an empty list
+and the card keeps its placeholder, which is the honest outcome.
+
+To turn it on, set `VITE_GOOGLE_PLACES_KEY`:
+
+1. In the Google Cloud console, same project as sign-in, enable **Places API
+   (New)**.
+2. Create an API key under APIs & Services → Credentials.
+3. Restrict it by HTTP referrer to `khairythomas-netizen.github.io/*` and
+   `localhost:5273/*`. The key travels in the bundle and in photo URLs, which
+   is normal for Places on the web and safe only with referrer restrictions.
+4. Add the key to `.env` locally and as a repository secret for the deploy.
+
+Google bills Places per request and includes a monthly free allowance. The
+day-long cache and the WingZ-photo-first rule exist to stay inside it.
+
 ### Data and auth
 
 `WingzStore` is the whole persistence surface, and it is async throughout so

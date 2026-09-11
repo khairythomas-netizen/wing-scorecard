@@ -38,6 +38,17 @@ export interface PlacesProvider {
    * city, and the pin is correct the moment the restaurant is created.
    */
   searchAddresses(query: string, near?: { lat: number; lng: number }): Promise<GeocodedAddress[]>;
+
+  /**
+   * Photos of the restaurant itself, licensed by the provider.
+   *
+   * Deliberately not scraped. A restaurant's own website and Instagram are
+   * copyrighted and, from a static site, unreachable anyway: the browser
+   * blocks reading another origin. Providers that licence photos are the only
+   * honest route, so a provider without them returns an empty list and the
+   * card falls back to its placeholder.
+   */
+  photos(externalId: string, maxWidth: number): Promise<string[]>;
 }
 
 export interface GeocodedAddress {

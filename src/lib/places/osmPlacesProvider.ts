@@ -97,6 +97,14 @@ export function createOsmPlacesProvider(): PlacesProvider {
   return {
     name: 'osm',
 
+    // OpenStreetMap carries no restaurant photography, and scraping the
+    // restaurant's own site or Instagram is both prohibited and impossible
+    // from a browser. Saying so plainly beats returning something wrong.
+    async photos() {
+      return [];
+    },
+
+
     async autocomplete(text, near) {
       const q = text.trim();
       if (q.length < 2) return [];

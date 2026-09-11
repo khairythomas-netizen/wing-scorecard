@@ -49,6 +49,19 @@ export function createGooglePlacesProvider(apiKey: string): PlacesProvider {
   return {
     name: 'google',
 
+    async photos(externalId, maxWidth) {
+      // Two steps by design: the photo names come from Details, and the media
+      // endpoint turns a name into an image URL an <img> can use directly.
+      const res = await fetch(`${BASE}/places/${encodeURIComponent(externalId)}?fields=photos`, {
+        headers: { 'X-Goog-Api-Key': apiKey },
+      });
+      if (!res.ok) return [];
+      const body = (await res.json()) as { photos?: { name: string }[] };
+      return (body.photos ?? [])
+        .slice(0, 3)
+        .map((p) => `${BASE}/${p.name}/media?maxWidthPx=${maxWidth}&key=${apiKey}`);
+    },
+
     async autocomplete(query, near) {
       if (!query.trim()) return [];
       const body: Record<string, unknown> = {
