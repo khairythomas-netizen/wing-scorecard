@@ -5,6 +5,7 @@ import { useToast } from '../../hooks/useToast';
 import { IMAGE_WIDTHS, sized } from '../../lib/images';
 import { friendlyAuthError, validateUsername } from '../../lib/auth/types';
 import type { Profile } from '../../lib/types';
+import { AvatarCropper } from './AvatarCropper';
 
 /**
  * Editing your own profile. The username is handled separately from the rest
@@ -22,6 +23,7 @@ export function EditProfile({ profile, onClose }: { profile: Profile; onClose: (
   const [isPrivate, setIsPrivate] = useState(profile.isPrivate);
   const [avatarUrl, setAvatarUrl] = useState(profile.avatarUrl);
   const [uploading, setUploading] = useState(false);
+  const [cropping, setCropping] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [available, setAvailable] = useState<boolean | null>(null);
@@ -49,7 +51,10 @@ export function EditProfile({ profile, onClose }: { profile: Profile; onClose: (
     };
   }, [normalized, changedUsername, formatError, client]);
 
+  // Crop first, upload second. Uploading the original and cropping with CSS
+  // would mean the avatar looked different everywhere it was shown smaller.
   const pickAvatar = async (file: File) => {
+    setCropping(null);
     setUploading(true);
     setError(null);
     try {
@@ -71,6 +76,10 @@ export function EditProfile({ profile, onClose }: { profile: Profile; onClose: (
       if (changedUsername && normalized) await client.claimUsername(normalized);
       await client.updateProfile({ displayName, bio, isPrivate, avatarUrl });
       await reload();
+      // The profile on screen is a cached store read, and the write above went
+      // through the auth client, which the store never hears about. Without
+      // this the save lands in the database and the screen snaps back.
+      store.refresh();
       toast('Profile updated');
       onClose();
     } catch (err) {
@@ -89,6 +98,16 @@ export function EditProfile({ profile, onClose }: { profile: Profile; onClose: (
         : available === false
           ? { text: 'That username is taken.', tone: 'text-danger' }
           : { text: 'Checking…', tone: 'text-muted' };
+
+  if (cropping) {
+    return (
+      <AvatarCropper
+        file={cropping}
+        onCancel={() => setCropping(null)}
+        onDone={(cropped) => void pickAvatar(cropped)}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[900] flex flex-col bg-bg">
@@ -133,7 +152,7 @@ export function EditProfile({ profile, onClose }: { profile: Profile; onClose: (
             hidden
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) void pickAvatar(file);
+              if (file) setCropping(file);
               e.target.value = '';
             }}
           />

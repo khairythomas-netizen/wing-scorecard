@@ -812,6 +812,10 @@ export function createLocalStore(): WingzStore {
       };
     },
 
+    refresh() {
+      listeners.forEach((l) => l());
+    },
+
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

@@ -171,4 +171,11 @@ export interface WingzStore {
 
   /** Fires after any write, so open queries can refetch. */
   subscribe(listener: () => void): () => void;
+
+  /**
+   * Tell every live query to re-read. Needed because profile writes go through
+   * the auth client, which knows nothing about the store's cached reads: a
+   * saved profile used to appear in the database and nowhere on screen.
+   */
+  refresh(): void;
 }

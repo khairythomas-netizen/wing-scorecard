@@ -1054,6 +1054,10 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
       };
     },
 
+    refresh() {
+      notify();
+    },
+
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
