@@ -57,28 +57,48 @@ export function SwipeMode() {
     }, 220);
   };
 
+  // Swipe is a proximity feature. Without a position the deck is just an
+  // arbitrary list of restaurants, which is worse than asking, so ask.
+  if (!near) {
+    return (
+      <div className="px-6 py-16 text-center">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-surface2 text-2xl">
+          📍
+        </div>
+        <p className="mt-4 text-sm font-black">Turn on location</p>
+        <p className="mx-auto mt-1.5 max-w-[34ch] text-xs leading-relaxed text-muted">
+          Swipe shows the wing places closest to you, nearest first. Without your
+          location there is no “nearest” to sort by.
+        </p>
+        <button
+          onClick={() => {
+            setAskedForLocation(true);
+            void requestLocation().then((c) => c && setNear(c));
+          }}
+          className="mt-5 rounded-xl bg-gradient-to-br from-orange to-gold px-5 py-2.5 text-xs font-extrabold text-white shadow-glow"
+        >
+          Use my location
+        </button>
+        {askedForLocation && (
+          <p className="mx-auto mt-3 max-w-[34ch] text-[11px] leading-relaxed text-muted">
+            If nothing happened, location is blocked for this site in your browser
+            settings and has to be allowed there.
+          </p>
+        )}
+      </div>
+    );
+  }
+
   if (deckQuery.data === undefined) return <Spinner label="Finding wings near you" />;
 
   if (!top) {
     return (
       <div className="px-6 py-16 text-center">
-        <p className="text-sm font-bold">
-          {near ? 'That is everything nearby for now' : 'Nothing to swipe yet'}
-        </p>
+        <p className="text-sm font-bold">That is everything nearby for now</p>
         <p className="mx-auto mt-1.5 max-w-[34ch] text-xs leading-relaxed text-muted">
-          {near
-            ? 'Follow more people, or come back once new places appear near you.'
-            : 'Turn on location to discover wing places around you.'}
+          Follow more people, or come back once new places appear near you.
         </p>
         <div className="mt-5 flex justify-center gap-2">
-          {!near && (
-            <button
-              onClick={() => void requestLocation().then((c) => c && setNear(c))}
-              className="rounded-xl bg-gradient-to-br from-orange to-gold px-5 py-2.5 text-xs font-extrabold text-white shadow-glow"
-            >
-              Use my location
-            </button>
-          )}
           <button
             onClick={() => {
               resetSwiped();

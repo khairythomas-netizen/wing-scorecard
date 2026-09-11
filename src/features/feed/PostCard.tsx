@@ -68,34 +68,52 @@ export function PostCard({
         )}
       </header>
 
-      <div
-        className="hide-scrollbar flex snap-x snap-mandatory overflow-x-auto"
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          setIndex(Math.round(el.scrollLeft / el.clientWidth));
-        }}
-      >
-        {photos.map((p) => (
-          <img
-            key={p.id}
-            src={sized(p.url, IMAGE_WIDTHS.feed)}
-            alt={`${flavour.name} wings at ${place.displayName}`}
-            loading="lazy"
-            className="aspect-square w-full shrink-0 snap-center bg-surface2 object-cover"
-          />
-        ))}
-      </div>
-
-      {photos.length > 1 && (
-        <div className="flex justify-center gap-1 pt-2" aria-hidden>
-          {photos.map((p, i) => (
-            <span
+      <div className="relative">
+        <div
+          className="hide-scrollbar flex snap-x snap-mandatory overflow-x-auto"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            setIndex(Math.round(el.scrollLeft / el.clientWidth));
+          }}
+        >
+          {photos.map((p) => (
+            <img
               key={p.id}
-              className={`h-1 w-1 rounded-full ${i === index ? 'bg-orange' : 'bg-muted/50'}`}
+              src={sized(p.url, IMAGE_WIDTHS.feed)}
+              alt={`${flavour.name} wings at ${place.displayName}`}
+              loading="lazy"
+              className="aspect-square w-full shrink-0 snap-center bg-surface2 object-cover"
             />
           ))}
         </div>
-      )}
+
+        {/* A count on the photo itself. The dots alone were four pixels of
+            near-background colour below the image, which told nobody there was
+            anything to swipe to. */}
+        {photos.length > 1 && (
+          <span className="pointer-events-none absolute right-2.5 top-2.5 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white backdrop-blur-sm">
+            {index + 1}/{photos.length}
+          </span>
+        )}
+
+        {/* Dots sit on the photo too, over a scrim, so they read on a light
+            image and a dark one alike rather than borrowing the theme. */}
+        {photos.length > 1 && (
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center gap-1.5"
+            aria-hidden
+          >
+            {photos.map((p, i) => (
+              <span
+                key={p.id}
+                className={`h-1.5 rounded-full shadow-[0_1px_3px_rgba(0,0,0,.6)] transition-all ${
+                  i === index ? 'w-4 bg-white' : 'w-1.5 bg-white/55'
+                }`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="flex items-center gap-4 px-3 pb-1 pt-2">
         <button
