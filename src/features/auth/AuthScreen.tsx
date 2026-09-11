@@ -4,7 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { friendlyAuthError, type OAuthProvider } from '../../lib/auth/types';
 import { ProviderButton } from './ProviderButton';
 
-type Mode = 'signIn' | 'signUp';
+type Mode = 'signIn' | 'signUp' | 'forgot';
 
 /** The wall shown when a Supabase project is attached and nobody is signed in. */
 export function AuthScreen() {
@@ -15,6 +15,7 @@ export function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkEmail, setCheckEmail] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const [providers, setProviders] = useState<OAuthProvider[]>([]);
 
   // Only offer the providers the project actually has configured, so a button
@@ -39,6 +40,11 @@ export function AuthScreen() {
     setError(null);
     setBusy(true);
     try {
+      if (mode === 'forgot') {
+        await client.sendPasswordReset(email.trim());
+        setResetSent(true);
+        return;
+      }
       if (mode === 'signUp') {
         const { needsEmailConfirmation } = await client.signUp(email.trim(), password);
         if (needsEmailConfirmation) {
@@ -69,6 +75,27 @@ export function AuthScreen() {
     }
   };
 
+  if (resetSent) {
+    return (
+      <Frame>
+        <h1 className="text-2xl font-black tracking-tight">Check your email</h1>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          If <span className="font-bold text-text">{email}</span> has an account, a link to
+          set a new password is on its way. It expires in an hour.
+        </p>
+        <button
+          onClick={() => {
+            setResetSent(false);
+            setMode('signIn');
+          }}
+          className="mt-6 w-full rounded-xl border border-line bg-surface py-3 text-sm font-extrabold"
+        >
+          Back to sign in
+        </button>
+      </Frame>
+    );
+  }
+
   if (checkEmail) {
     return (
       <Frame>
@@ -93,15 +120,21 @@ export function AuthScreen() {
   return (
     <Frame>
       <h1 className="text-2xl font-black tracking-tight">
-        {mode === 'signIn' ? 'Welcome back' : 'Start rating wings'}
+        {mode === 'forgot'
+          ? 'Reset your password'
+          : mode === 'signIn'
+            ? 'Welcome back'
+            : 'Start rating wings'}
       </h1>
       <p className="mt-1.5 text-sm text-muted">
-        {mode === 'signIn'
-          ? 'Sign in to your wing rankings.'
-          : 'Create an account to save and share your reviews.'}
+        {mode === 'forgot'
+          ? 'We will email you a link to set a new one.'
+          : mode === 'signIn'
+            ? 'Sign in to your wing rankings.'
+            : 'Create an account to save and share your reviews.'}
       </p>
 
-      {providers.length > 0 && (
+      {providers.length > 0 && mode !== 'forgot' && (
         <>
           <div className="mt-6 space-y-2.5">
             {providers.map((p) => (
@@ -132,19 +165,34 @@ export function AuthScreen() {
           />
         </label>
 
-        <label className="block">
-          <span className="mb-1.5 ml-1 block text-[11px] font-bold text-muted">Password</span>
-          <input
-            type="password"
-            required
-            minLength={6}
-            autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder={mode === 'signUp' ? 'At least 6 characters' : '••••••••'}
-            className="w-full rounded-xl2 border border-line bg-surface px-3.5 py-3 text-sm outline-none focus:border-orange"
-          />
-        </label>
+        {mode !== 'forgot' && (
+          <label className="block">
+            <span className="mb-1.5 ml-1 block text-[11px] font-bold text-muted">Password</span>
+            <input
+              type="password"
+              required
+              minLength={6}
+              autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={mode === 'signUp' ? 'At least 6 characters' : '••••••••'}
+              className="w-full rounded-xl2 border border-line bg-surface px-3.5 py-3 text-sm outline-none focus:border-orange"
+            />
+          </label>
+        )}
+
+        {mode === 'signIn' && (
+          <button
+            type="button"
+            onClick={() => {
+              setMode('forgot');
+              setError(null);
+            }}
+            className="ml-1 text-[11px] font-bold text-muted underline underline-offset-2"
+          >
+            Forgot your password?
+          </button>
+        )}
 
         {error && <p className="text-[12px] font-semibold text-danger">{error}</p>}
 
@@ -153,7 +201,13 @@ export function AuthScreen() {
           disabled={busy}
           className="w-full rounded-xl bg-gradient-to-br from-orange to-gold py-3.5 text-sm font-black text-white shadow-glow disabled:opacity-60"
         >
-          {busy ? 'One moment…' : mode === 'signIn' ? 'Sign in' : 'Create account'}
+          {busy
+            ? 'One moment…'
+            : mode === 'forgot'
+              ? 'Email me a link'
+              : mode === 'signIn'
+                ? 'Sign in'
+                : 'Create account'}
         </button>
       </form>
 
@@ -164,7 +218,11 @@ export function AuthScreen() {
         }}
         className="mt-5 w-full text-[12px] font-semibold text-muted"
       >
-        {mode === 'signIn' ? (
+        {mode === 'forgot' ? (
+          <>
+            Remembered it? <span className="font-extrabold text-text">Sign in</span>
+          </>
+        ) : mode === 'signIn' ? (
           <>
             New here? <span className="font-extrabold text-text">Create an account</span>
           </>

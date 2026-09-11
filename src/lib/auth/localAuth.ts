@@ -63,6 +63,13 @@ export function createLocalAuth(): AuthClient {
     },
     async signInWithProvider() {},
 
+    // Demo mode has no email and no password to reset.
+    async sendPasswordReset() {},
+    async updatePassword() {},
+    onPasswordRecovery() {
+      return () => {};
+    },
+
     async isUsernameAvailable() {
       return true;
     },

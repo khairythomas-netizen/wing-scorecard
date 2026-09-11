@@ -46,7 +46,12 @@ export function toProfile(row: ProfileRow, counts?: Partial<Profile>): Profile {
 export function createSupabaseAuth(client: SupabaseClient): AuthClient {
   const listeners = new Set<() => void>();
 
-  client.auth.onAuthStateChange(() => listeners.forEach((l) => l()));
+  const recoveryListeners = new Set<() => void>();
+
+  client.auth.onAuthStateChange((event) => {
+    listeners.forEach((l) => l());
+    if (event === 'PASSWORD_RECOVERY') recoveryListeners.forEach((l) => l());
+  });
 
   const fail = (message: string): never => {
     throw new AuthError(friendlyAuthError(message));
@@ -120,6 +125,24 @@ export function createSupabaseAuth(client: SupabaseClient): AuthClient {
         options: { redirectTo: redirectTarget() },
       });
       if (error) fail(error.message);
+    },
+
+    async sendPasswordReset(email) {
+      const { error } = await client.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectTarget(),
+      });
+      if (error) fail(error.message);
+    },
+
+    async updatePassword(password) {
+      const { error } = await client.auth.updateUser({ password });
+      if (error) fail(error.message);
+      listeners.forEach((l) => l());
+    },
+
+    onPasswordRecovery(listener) {
+      recoveryListeners.add(listener);
+      return () => recoveryListeners.delete(listener);
     },
 
     async isUsernameAvailable(username) {

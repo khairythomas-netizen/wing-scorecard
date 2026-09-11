@@ -6,6 +6,7 @@ import { BrandLockup } from './components/Brand';
 import { MoonIcon, RefreshIcon, SunIcon } from './components/Icons';
 import { Spinner } from './components/States';
 import { AuthScreen } from './features/auth/AuthScreen';
+import { NewPassword } from './features/auth/NewPassword';
 import { UsernameScreen } from './features/auth/UsernameScreen';
 import { DiscoverScreen } from './features/discover/DiscoverScreen';
 import { FeedScreen } from './features/feed/FeedScreen';
@@ -45,6 +46,11 @@ export function App() {
 function Gate() {
   const { user, profile, loading, client } = useAuth();
   const { theme } = useTheme();
+  const [recovering, setRecovering] = useState(false);
+
+  // Opening a reset link signs the person in, which would otherwise drop them
+  // into the feed with the password they could not remember still in force.
+  useEffect(() => client.onPasswordRecovery(() => setRecovering(true)), [client]);
 
   if (loading) {
     return (
@@ -55,6 +61,7 @@ function Gate() {
   }
 
   if (client.requiresSignIn && !user) return <AuthScreen />;
+  if (recovering) return <NewPassword onDone={() => setRecovering(false)} />;
   if (user && profile && !profile.username) return <UsernameScreen />;
 
   return <Shell theme={theme} />;

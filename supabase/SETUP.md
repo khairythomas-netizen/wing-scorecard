@@ -54,11 +54,15 @@ personal address is not possible: sender identities are a paid feature, and
 an outlook.com or gmail.com from-address fails the authentication checks
 Gmail and Yahoo now enforce, because nobody here controls those domains.
 
-**The account is still in sandbox, which only delivers to the account owner's
-address.** Password resets will not reach anyone else until the account is
-approved for general sending, and that needs a real domain. Buying one is the
-single change that fixes this, the ugly trial sender above, and the Supabase
-hostname on the Google consent screen.
+Delivery is real. Verified on 11 September 2026 by sending a password reset
+to a Gmail address that is not the MailerSend account owner and watching it
+arrive. MailerSend's documentation says trial accounts only reach the account
+owner; in practice this one does not behave that way, so trust the test over
+the docs, and re-test if sending ever starts failing.
+
+The trial domain in the sender address is the remaining cosmetic wart. A real
+domain would fix that, and the Supabase hostname on the Google consent screen,
+but neither blocks anything.
 
 Google and Apple sign-in are optional and configured entirely in their own
 dashboards. See [SOCIAL_SIGNIN.md](SOCIAL_SIGNIN.md). The app shows only the

@@ -59,6 +59,18 @@ export interface AuthClient {
   /** Sends the browser to the provider. Resolves only if the redirect fails. */
   signInWithProvider(provider: OAuthProvider): Promise<void>;
 
+  /** Emails a link that signs the person in long enough to set a new password. */
+  sendPasswordReset(email: string): Promise<void>;
+  /** Sets a new password for whoever is currently signed in. */
+  updatePassword(password: string): Promise<void>;
+  /**
+   * Fires when the app is opened from a password reset link. The person is
+   * signed in at that moment but has not proved they remember anything, so the
+   * app shows a "set a new password" step rather than dropping them into the
+   * feed.
+   */
+  onPasswordRecovery(listener: () => void): () => void;
+
   isUsernameAvailable(username: string): Promise<boolean>;
   claimUsername(username: string): Promise<void>;
   updateProfile(
@@ -111,6 +123,9 @@ export function friendlyAuthError(message: string): string {
   if (m.includes('taken')) return 'That username is taken.';
   if (m.includes('provider is not enabled') || m.includes('unsupported provider')) {
     return 'That sign-in method is not available yet.';
+  }
+  if (m.includes('new password should be different')) {
+    return 'That is the password you already have. Pick a different one.';
   }
   if (m.includes('email not confirmed'))
     return 'Confirm your email first — check your inbox for the link.';
