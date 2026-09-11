@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   AVATAR_SIZE,
   centredOffset,
@@ -12,14 +12,13 @@ import {
   type Size,
 } from '../../lib/crop';
 
-const FRAME = 288;
-
 /**
  * Pick the part of a photo that ends up in the circle.
  *
- * The mask is a real circle rather than a rounded square, because an avatar
- * that looked right while cropping and wrong once posted is the whole problem
- * this solves. Drag to move, pinch or use the slider to zoom.
+ * Modelled on the iPhone contact photo editor: the whole photo stays visible
+ * and everything outside the circle is dimmed, rather than the photo being
+ * clipped to a small disc. Seeing what you are cutting off is the entire
+ * point of the screen, and a clipped preview hides it.
  */
 export function AvatarCropper({
   file,
@@ -34,38 +33,54 @@ export function AvatarCropper({
   const [image, setImage] = useState<Size | null>(null);
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState<Offset>({ x: 0, y: 0 });
+  const [frame, setFrame] = useState(320);
   const [working, setWorking] = useState(false);
 
+  const area = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; from: Offset } | null>(null);
   const pinch = useRef<{ distance: number; from: number } | null>(null);
+
+  // The circle is as wide as the screen allows, the way Apple's is. Measured
+  // rather than hard-coded so it is right on a small phone and a tablet.
+  useLayoutEffect(() => {
+    const measure = () => {
+      const box = area.current?.getBoundingClientRect();
+      if (!box) return;
+      setFrame(Math.max(200, Math.min(box.width - 32, box.height - 32, 420)));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
 
   useEffect(() => {
     const objectUrl = URL.createObjectURL(file);
     setUrl(objectUrl);
     const img = new Image();
-    img.onload = () => {
-      const size = { width: img.naturalWidth, height: img.naturalHeight };
-      setImage(size);
-      setOffset(centredOffset(size, FRAME, 1));
-    };
+    img.onload = () => setImage({ width: img.naturalWidth, height: img.naturalHeight });
     img.src = objectUrl;
     return () => URL.revokeObjectURL(objectUrl);
   }, [file]);
+
+  // Re-centre whenever the photo or the circle size changes.
+  useEffect(() => {
+    if (image) setOffset(centredOffset(image, frame, zoom));
+    // Only on a new photo or a new frame; panning must not be undone.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [image, frame]);
 
   const applyZoom = (next: number) => {
     if (!image) return;
     const z = clampZoom(next);
     // Zoom about the centre of the circle, so the face you lined up stays put
     // instead of sliding towards a corner.
-    const before = coverScale(image, FRAME) * zoom;
-    const after = coverScale(image, FRAME) * z;
-    const ratio = after / before;
-    const middle = FRAME / 2;
+    const ratio = (coverScale(image, frame) * z) / (coverScale(image, frame) * zoom);
+    const middle = frame / 2;
     setOffset(
       clampOffset(
         { x: middle - (middle - offset.x) * ratio, y: middle - (middle - offset.y) * ratio },
         image,
-        FRAME,
+        frame,
         z,
       ),
     );
@@ -81,7 +96,7 @@ export function AvatarCropper({
     if (!image || !url) return;
     setWorking(true);
     try {
-      const rect = sourceRect(image, FRAME, zoom, offset);
+      const rect = sourceRect(image, frame, zoom, offset);
       const canvas = document.createElement('canvas');
       canvas.width = AVATAR_SIZE;
       canvas.height = AVATAR_SIZE;
@@ -106,57 +121,77 @@ export function AvatarCropper({
     }
   };
 
-  const scale = image ? coverScale(image, FRAME) * zoom : 1;
+  const scale = image ? coverScale(image, frame) * zoom : 1;
 
   return (
-    <div className="fixed inset-0 z-[950] flex flex-col bg-bg">
-      <div className="safe-top flex items-center justify-between border-b border-line px-4 pb-3">
-        <button onClick={onCancel} className="text-[13px] font-bold text-muted">
-          Cancel
+    <div className="fixed inset-0 z-[950] flex flex-col bg-black text-white">
+      <div className="safe-top flex items-center justify-between px-4 pb-3">
+        <button
+          onClick={onCancel}
+          aria-label="Cancel"
+          className="grid h-11 w-11 place-items-center rounded-full bg-white/10 active:bg-white/20"
+        >
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
         </button>
-        <h2 className="text-sm font-black">Move and scale</h2>
+
+        <h2 className="text-[17px] font-bold">Move and Scale</h2>
+
         <button
           onClick={() => void confirm()}
           disabled={!image || working}
-          className="text-[13px] font-black text-orange disabled:opacity-40"
+          aria-label="Use photo"
+          className="grid h-11 w-11 place-items-center rounded-full bg-white/10 active:bg-white/20 disabled:opacity-40"
         >
-          {working ? 'Working…' : 'Use photo'}
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 12.5l5.5 5.5L20 7" />
+          </svg>
         </button>
       </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center px-6">
-        <div
-          className="relative touch-none overflow-hidden rounded-full bg-surface2"
-          style={{ width: FRAME, height: FRAME }}
-          onPointerDown={(e) => {
-            (e.target as Element).setPointerCapture?.(e.pointerId);
-            drag.current = { x: e.clientX, y: e.clientY, from: offset };
-          }}
-          onPointerMove={(e) => {
-            if (!drag.current || !image) return;
-            const next = {
-              x: drag.current.from.x + (e.clientX - drag.current.x),
-              y: drag.current.from.y + (e.clientY - drag.current.y),
-            };
-            setOffset(clampOffset(next, image, FRAME, zoom));
-          }}
-          onPointerUp={() => {
+      <div
+        ref={area}
+        className="relative flex flex-1 touch-none items-center justify-center overflow-hidden"
+        onPointerDown={(e) => {
+          (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+          drag.current = { x: e.clientX, y: e.clientY, from: offset };
+        }}
+        onPointerMove={(e) => {
+          if (!drag.current || !image) return;
+          setOffset(
+            clampOffset(
+              {
+                x: drag.current.from.x + (e.clientX - drag.current.x),
+                y: drag.current.from.y + (e.clientY - drag.current.y),
+              },
+              image,
+              frame,
+              zoom,
+            ),
+          );
+        }}
+        onPointerUp={() => {
+          drag.current = null;
+        }}
+        onTouchStart={(e) => {
+          if (e.touches.length === 2) {
             drag.current = null;
-          }}
-          onTouchStart={(e) => {
-            if (e.touches.length === 2) {
-              drag.current = null;
-              pinch.current = { distance: distanceBetween(e.touches), from: zoom };
-            }
-          }}
-          onTouchMove={(e) => {
-            if (e.touches.length !== 2 || !pinch.current) return;
-            applyZoom((pinch.current.from * distanceBetween(e.touches)) / pinch.current.distance);
-          }}
-          onTouchEnd={() => {
-            pinch.current = null;
-          }}
-        >
+            pinch.current = { distance: distanceBetween(e.touches), from: zoom };
+          }
+        }}
+        onTouchMove={(e) => {
+          if (e.touches.length !== 2 || !pinch.current) return;
+          applyZoom((pinch.current.from * distanceBetween(e.touches)) / pinch.current.distance);
+        }}
+        onTouchEnd={() => {
+          pinch.current = null;
+        }}
+      >
+        {/* The circle's own box. The photo is positioned against it and is
+            deliberately allowed to overflow, so the parts being cropped away
+            stay on screen. */}
+        <div className="relative" style={{ width: frame, height: frame }}>
           {url && image && (
             <img
               src={url}
@@ -171,10 +206,17 @@ export function AvatarCropper({
               }}
             />
           )}
+
+          {/* One element does the dimming: a circle with a shadow so large it
+              covers the rest of the screen, leaving the circle itself clear. */}
+          <div
+            className="pointer-events-none absolute inset-0 rounded-full ring-[1.5px] ring-white/70"
+            style={{ boxShadow: '0 0 0 9999px rgba(0,0,0,0.62)' }}
+          />
         </div>
+      </div>
 
-        <p className="mt-4 text-[11px] text-muted">Drag to move, pinch or slide to zoom</p>
-
+      <div className="safe-bottom px-8 pb-6">
         <input
           type="range"
           aria-label="Zoom"
@@ -183,8 +225,11 @@ export function AvatarCropper({
           step={0.01}
           value={zoom}
           onChange={(e) => applyZoom(Number(e.target.value))}
-          className="metric-range mt-3 w-full max-w-[288px]"
+          className="metric-range w-full"
         />
+        <p className="mt-2 text-center text-[12px] text-white/60">
+          Drag to move, pinch or slide to zoom
+        </p>
       </div>
     </div>
   );
