@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BottomNav, type TabId } from './components/BottomNav';
+import { BottomNav, DEFAULT_TAB, isTabId, type TabId } from './components/BottomNav';
+
+const RESUME_TAB_KEY = 'wingz:resume-tab';
 import { BrandLockup } from './components/Brand';
 import { MoonIcon, RefreshIcon, SunIcon } from './components/Icons';
 import { Spinner } from './components/States';
@@ -64,7 +66,31 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
   const toast = useToast();
 
   // Rate is the landing tab for now, by product decision.
-  const [tab, setTab] = useState<TabId>('rate');
+  // Refreshing reloads the page, which used to throw you back to Rate from
+  // wherever you were reading. The tab is handed across the reload in session
+  // storage, which a genuine cold start does not have, so opening the app
+  // still lands on Rate.
+  const [tab, setTab] = useState<TabId>(() => {
+    try {
+      const resume = sessionStorage.getItem(RESUME_TAB_KEY);
+      if (isTabId(resume)) return resume;
+    } catch {
+      /* private mode */
+    }
+    return DEFAULT_TAB;
+  });
+
+  // Clearing belongs here, not in the initializer above. React runs a state
+  // initializer twice in development, so reading and clearing together meant
+  // the first run consumed the value and the second saw nothing and fell back
+  // to Rate. An effect runs after the state is already settled.
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem(RESUME_TAB_KEY);
+    } catch {
+      /* private mode */
+    }
+  }, []);
   const [profileId, setProfileId] = useState<string>(user?.id ?? '');
   const [updateReady, setUpdateReady] = useState(false);
   const [peopleOpen, setPeopleOpen] = useState(false);
@@ -97,6 +123,11 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
 
   const refresh = async () => {
     toast(updateReady ? 'Loading the new version…' : 'Checking for updates…');
+    try {
+      sessionStorage.setItem(RESUME_TAB_KEY, tab);
+    } catch {
+      /* private mode: worst case the refresh lands on Rate, as it used to */
+    }
     await applyUpdate();
   };
 

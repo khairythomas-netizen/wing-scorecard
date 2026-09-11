@@ -2,6 +2,19 @@ import { CompassIcon, HomeIcon, ListIcon, PlusIcon, UserIcon } from './Icons';
 
 export type TabId = 'feed' | 'discover' | 'rate' | 'rankings' | 'profile';
 
+/** The tab a cold start lands on. Rating a wing is what the app is for. */
+export const DEFAULT_TAB: TabId = 'rate';
+
+export function isTabId(value: unknown): value is TabId {
+  return (
+    value === 'feed' ||
+    value === 'discover' ||
+    value === 'rate' ||
+    value === 'rankings' ||
+    value === 'profile'
+  );
+}
+
 const TABS: { id: TabId; label: string; Icon: typeof HomeIcon }[] = [
   { id: 'feed', label: 'Feed', Icon: HomeIcon },
   { id: 'discover', label: 'Discover', Icon: CompassIcon },
