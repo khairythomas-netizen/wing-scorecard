@@ -6,6 +6,7 @@ import { mapProvider, type MapViewport } from '../../lib/map';
 import type { Theme } from '../../hooks/useTheme';
 import { compact } from '../../lib/format';
 import { IMAGE_WIDTHS, sized } from '../../lib/images';
+import { scoreGradient } from '../../lib/scoreColor';
 import { RankingsScreen } from '../rankings/RankingsScreen';
 import { EditProfile } from './EditProfile';
 import { FollowRequests } from './FollowRequests';
@@ -158,7 +159,10 @@ export function ProfileScreen({
                 loading="lazy"
                 className="h-full w-full object-cover"
               />
-              <span className="absolute bottom-1 right-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-black text-white backdrop-blur-sm">
+              <span
+                style={{ background: scoreGradient(r.finalScore) }}
+                className="absolute bottom-1 right-1 rounded-md px-1.5 py-0.5 text-[10px] font-black tabular-nums text-white shadow"
+              >
                 {r.finalScore.toFixed(1)}
               </span>
             </button>

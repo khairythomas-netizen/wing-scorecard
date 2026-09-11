@@ -13,10 +13,17 @@ export function ScoreBadge({
   score,
   size = 'md',
   onClick,
+  showScale = false,
 }: {
   score: number;
   size?: 'sm' | 'md' | 'lg';
   onClick?: () => void;
+  /**
+   * Whether to print "/10" after the number. Off while browsing, where the
+   * scale is obvious from every other score on screen and the suffix is just
+   * noise. On while composing a score, where the ceiling is the point.
+   */
+  showScale?: boolean;
 }) {
   const sizes = {
     sm: 'text-sm px-2 py-1 rounded-lg',
@@ -36,7 +43,7 @@ export function ScoreBadge({
       {...(onClick ? { 'aria-label': `Score ${formatScore(score)} out of 10. Show breakdown.` } : {})}
     >
       <span className="tabular-nums leading-none">{formatScore(score)}</span>
-      <span className="text-[0.55em] font-bold opacity-80">/10</span>
+      {showScale && <span className="text-[0.55em] font-bold opacity-80">/10</span>}
     </Tag>
   );
 }

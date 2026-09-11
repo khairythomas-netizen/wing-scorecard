@@ -225,7 +225,7 @@ function Form({ item, onDone }: { item: FeedItem; onDone: () => void }) {
 
       <div className="above-nav fixed left-1/2 z-30 flex w-[calc(100%-2rem)] max-w-[568px] -translate-x-1/2 items-center justify-between gap-3 rounded-xl2 border border-line bg-[var(--glass)] px-4 py-3 shadow-card backdrop-blur-xl">
         <div>
-          <ScoreBadge score={result.final} size="lg" />
+          <ScoreBadge score={result.final} size="lg" showScale />
           <p className="mt-1 text-[10px] font-semibold text-muted">
             was {formatScore(review.finalScore)}
           </p>
