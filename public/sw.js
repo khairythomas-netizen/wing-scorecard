@@ -1,6 +1,12 @@
 /*
  * WingZ service worker.
  *
+ * BUILD_ID is stamped by scripts/stamp-sw.mjs at build time. That matters more
+ * than it looks: a browser only notices a new worker when this file's bytes
+ * change. With a hand-edited version constant the file stayed identical across
+ * deploys, no update was ever detected, and an installed app could sit on an
+ * old build indefinitely because nothing told it otherwise.
+ *
  * Rules, in order of importance:
  *  1. Never serve a stale document. Navigations are network-first, so a new
  *     GitHub Pages deploy is picked up on the next launch.
@@ -8,12 +14,13 @@
  *     the HTML to change the default tab and swap the logo, which meant the app
  *     only behaved correctly once a worker was installed. Those are now facts of
  *     the source.
- *  3. Bump CACHE_VERSION on every meaningful release. Old caches are deleted on
- *     activate, so there is no way to get wedged on an old build.
+ *  3. The cache name carries the build id, so every deploy gets a fresh cache
+ *     and the old ones are deleted on activate. There is no way to get wedged
+ *     on an old build.
  */
 
-const CACHE_VERSION = 'v4';
-const CACHE = `wingz-${CACHE_VERSION}`;
+const BUILD_ID = '__BUILD_ID__';
+const CACHE = `wingz-${BUILD_ID}`;
 const SCOPE = new URL(self.registration.scope).pathname;
 
 const PRECACHE = [

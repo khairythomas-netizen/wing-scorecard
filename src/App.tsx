@@ -128,6 +128,27 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
     window.scrollTo({ top: 0 });
   }, []);
 
+  // Coming back to a backgrounded app is the moment to take a new build: on
+  // iOS a home-screen app resumes the suspended page rather than navigating,
+  // so without this someone could keep reopening WingZ for days and never see
+  // a deploy. Rate is excluded because a half-written review would be lost
+  // with the page, and losing someone's photo and scores is worse than them
+  // running yesterday's build for another minute.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!updateReady || tab === 'rate') return;
+      try {
+        sessionStorage.setItem(RESUME_TAB_KEY, tab);
+      } catch {
+        /* private mode */
+      }
+      void applyUpdate();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [updateReady, tab]);
+
   const refresh = async () => {
     toast(updateReady ? 'Loading the new version…' : 'Checking for updates…');
     try {
