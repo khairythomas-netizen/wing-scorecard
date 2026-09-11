@@ -86,6 +86,9 @@ export interface DiscoverMarker {
   place: Place;
   owner: 'mine' | 'friends' | 'community' | 'wantToTry';
   label: string;
+  /** The number behind the label, so the pin can be coloured by it. Null for
+   *  Want to Try, which has no score yet. */
+  score: number | null;
 }
 
 export interface PlaceDetail {

@@ -10,6 +10,8 @@ export interface MapMarker {
   owner: MarkerOwner;
   /** Rendered inside the pin. A score, or a heart for Want to Try. */
   label: string;
+  /** Colours the pin body. Null keeps the owner colour, for Want to Try. */
+  score?: number | null;
   selected?: boolean;
 }
 

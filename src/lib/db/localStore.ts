@@ -751,7 +751,7 @@ export function createLocalStore(): WingzStore {
 
       if (filters.owner === 'wantToTry') {
         for (const w of await this.listWantToTry()) {
-          out.push({ place: w.place, owner: 'wantToTry', label: '♥' });
+          out.push({ place: w.place, owner: 'wantToTry', label: '♥', score: null });
         }
         return out;
       }
@@ -783,6 +783,7 @@ export function createLocalStore(): WingzStore {
           place,
           owner: mine ? 'mine' : friend ? 'friends' : 'community',
           label: chosen.finalScore.toFixed(1),
+          score: chosen.finalScore,
         });
       }
       return out;

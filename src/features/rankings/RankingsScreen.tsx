@@ -5,7 +5,7 @@ import { Sheet } from '../../components/Sheet';
 import { EmptyState, ErrorState, Spinner } from '../../components/States';
 import { useQuery } from '../../hooks/useStore';
 import { IMAGE_WIDTHS, sized } from '../../lib/images';
-import { formatScore } from '../../lib/scoring';
+import { ScoreBadge } from '../../components/ScoreBadge';
 import type { FeedItem } from '../../lib/types';
 import {
   DEFAULT_FILTERS,
@@ -125,8 +125,8 @@ export function RankingsScreen({ userId, title }: { userId?: string; title?: str
                 )}
               </span>
             </span>
-            <span className="shrink-0 text-lg font-black tabular-nums">
-              {formatScore(item.review.finalScore)}
+            <span className="shrink-0">
+              <ScoreBadge score={item.review.finalScore} size="sm" />
             </span>
           </button>
         ))

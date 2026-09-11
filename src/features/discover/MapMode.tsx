@@ -16,11 +16,12 @@ import {
 } from './MapFilters';
 import type { Theme } from '../../hooks/useTheme';
 
+// The ring around a pin says whose it is; the pin body says how good it was.
 const LEGEND: [string, string, string][] = [
-  ['Mine', 'bg-orange', 'mine'],
-  ['Friends', 'bg-blue', 'friends'],
-  ['Community', 'bg-[var(--surface2)] border border-line', 'community'],
-  ['Want to Try', 'bg-violet', 'wantToTry'],
+  ['Mine', 'ring-orange', 'mine'],
+  ['Friends', 'ring-blue', 'friends'],
+  ['Community', 'ring-[var(--surface2)]', 'community'],
+  ['Want to Try', 'ring-violet', 'wantToTry'],
 ];
 
 export function MapMode({ theme }: { theme: Theme }) {
@@ -87,6 +88,7 @@ export function MapMode({ theme }: { theme: Theme }) {
         lng: p.place.lng,
         owner: p.owner,
         label: p.label,
+        score: p.score,
         selected: p.place.id === selected,
       })),
     [pins, selected],
@@ -133,7 +135,7 @@ export function MapMode({ theme }: { theme: Theme }) {
         >
           {LEGEND.map(([label, cls]) => (
             <span key={label} className="flex items-center gap-1 text-[9px] font-bold text-muted">
-              <span className={`h-1.5 w-1.5 rounded-full ${cls}`} />
+              <span className={`h-1.5 w-1.5 rounded-full bg-muted/40 ring-2 ${cls}`} />
               {label}
             </span>
           ))}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { scoreHex } from '../scoreColor';
 import type { MapMarker, MapSurfaceProps } from './provider';
 import {
   ATTRIBUTION,
@@ -54,8 +55,13 @@ const OWNER_COLOUR: Record<MapMarker['owner'], string> = {
  * selected so the tapped pin is unmistakable.
  */
 function pinIcon(m: MapMarker): L.DivIcon {
-  const colour = OWNER_COLOUR[m.owner];
-  const text = m.owner === 'community' ? 'var(--text)' : '#fff';
+  // The body carries the score, red to green. Ownership moves to a ring around
+  // the pin, so both facts survive: recolouring the body by score alone would
+  // have quietly deleted the mine/friends/community distinction the legend
+  // still promises.
+  const owner = OWNER_COLOUR[m.owner];
+  const colour = m.score != null ? scoreHex(m.score) : owner;
+  const text = m.score == null && m.owner === 'community' ? 'var(--text)' : '#fff';
   const scale = m.selected ? 1.15 : 1;
   const size = 40 * scale;
 
@@ -74,7 +80,7 @@ function pinIcon(m: MapMarker): L.DivIcon {
           border:2.5px solid #fff;border-radius:50% 50% 50% 12%;
           transform:rotate(-45deg);
           background:${colour};color:${text};
-          box-shadow:0 3px 10px rgba(0,0,0,.35);
+          box-shadow:0 0 0 2.5px ${owner}, 0 3px 10px rgba(0,0,0,.35);
           font-weight:900;font-size:${11 * scale}px;
         "><span style="transform:rotate(45deg);letter-spacing:-.02em">${m.label}</span></span>
       </span>`,
@@ -151,7 +157,14 @@ export function LeafletSurface({
     // layout settles it renders into a zero-sized box and never draws.
     const ro = new ResizeObserver(() => instance.invalidateSize());
     ro.observe(container.current);
-    requestAnimationFrame(() => instance.invalidateSize());
+
+    // Two re-measures rather than one. requestAnimationFrame never fires in a
+    // document the browser is not compositing (a background tab, a restored
+    // page), and when it does not, Leaflet keeps whatever size it measured at
+    // creation and leaves a band of empty container below the tiles. The
+    // timeout runs regardless of painting.
+    const raf = requestAnimationFrame(() => instance.invalidateSize());
+    const settle = window.setTimeout(() => instance.invalidateSize(), 250);
 
     instance.getContainer().dataset.theme = theme;
     applyTileFilter();
@@ -159,6 +172,8 @@ export function LeafletSurface({
     map.current = instance;
     tileLayer.current = layer;
     return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(settle);
       ro.disconnect();
       instance.remove();
       map.current = null;

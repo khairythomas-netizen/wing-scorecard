@@ -939,6 +939,7 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
           place: w.place,
           owner: 'wantToTry' as const,
           label: '♥',
+          score: null,
         }));
       }
 
@@ -981,6 +982,7 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
         place: e.place,
         owner: e.mine != null ? ('mine' as const) : e.friend != null ? ('friends' as const) : ('community' as const),
         label: (e.mine ?? e.friend ?? e.any).toFixed(1),
+        score: e.mine ?? e.friend ?? e.any,
       }));
     },
 

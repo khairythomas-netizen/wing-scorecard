@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ScoreBadge } from '../../components/ScoreBadge';
 import { Sheet } from '../../components/Sheet';
 import { useQuery, useStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
@@ -8,7 +9,6 @@ import {
   COOK_SLIDER_CENTER,
   EXPERIENCE_MAX,
   calculateScore,
-  formatScore,
   type BonusEntry,
 } from '../../lib/scoring';
 import type { Breading, Place, WingStyle } from '../../lib/types';
@@ -308,10 +308,7 @@ export function RateScreen({ onPublished }: { onPublished: () => void }) {
           className="text-left"
           aria-label="Show score breakdown"
         >
-          <p className="text-[30px] font-black leading-none tracking-tight tabular-nums">
-            {formatScore(result.final)}
-            <span className="ml-1 text-xs font-bold text-muted">/ 10</span>
-          </p>
+          <ScoreBadge score={result.final} size="lg" />
           <p className="mt-1 text-[10px] font-semibold text-muted">
             {result.base.toFixed(1)} base · +{result.bonus.toFixed(1)} bonus ·{' '}
             <span className="underline decoration-dotted">breakdown</span>
@@ -566,10 +563,7 @@ export function BreakdownRows({
     <div>
       <div className="mb-3 flex items-baseline justify-between rounded-xl2 bg-surface2 px-4 py-3">
         <span className="text-[11px] font-bold uppercase tracking-wide text-muted">Final</span>
-        <span className="text-2xl font-black tabular-nums">
-          {formatScore(result.final)}
-          <span className="ml-1 text-xs font-bold text-muted">/ 10</span>
-        </span>
+        <ScoreBadge score={result.final} size="md" />
       </div>
 
       <Group title="Core" total={result.core} max={CORE_MAX}>

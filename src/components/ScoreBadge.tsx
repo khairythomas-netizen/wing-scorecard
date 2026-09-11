@@ -1,9 +1,13 @@
+import { scoreGradient } from '../lib/scoreColor';
 import { formatScore } from '../lib/scoring';
 
 /**
  * The score is always shown over 10, even at 10.5. An extraordinary card is
  * allowed to beat a perfect 10, and normalising it back down would erase
  * exactly the thing the bonus exists to record.
+ *
+ * The background carries the score too, red through amber to green, so a
+ * feed reads at a glance without anyone parsing decimals.
  */
 export function ScoreBadge({
   score,
@@ -25,7 +29,8 @@ export function ScoreBadge({
   return (
     <Tag
       onClick={onClick}
-      className={`inline-flex items-baseline gap-1 bg-gradient-to-br from-orange to-gold font-black text-white ${sizes} ${
+      style={{ background: scoreGradient(score) }}
+      className={`inline-flex items-baseline gap-1 font-black text-white ${sizes} ${
         onClick ? 'active:scale-95 transition-transform' : ''
       }`}
       {...(onClick ? { 'aria-label': `Score ${formatScore(score)} out of 10. Show breakdown.` } : {})}

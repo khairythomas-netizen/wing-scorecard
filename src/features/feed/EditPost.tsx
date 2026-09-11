@@ -4,6 +4,7 @@ import { EmptyState, ErrorState, Spinner } from '../../components/States';
 import { useQuery, useStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
 import { parsePriceToCents } from '../../lib/format';
+import { ScoreBadge } from '../../components/ScoreBadge';
 import { calculateScore, formatScore, type BonusEntry } from '../../lib/scoring';
 import type { Breading, FeedItem, Place, WingStyle } from '../../lib/types';
 import { RestaurantPicker } from '../rate/RestaurantPicker';
@@ -224,10 +225,7 @@ function Form({ item, onDone }: { item: FeedItem; onDone: () => void }) {
 
       <div className="above-nav fixed left-1/2 z-30 flex w-[calc(100%-2rem)] max-w-[568px] -translate-x-1/2 items-center justify-between gap-3 rounded-xl2 border border-line bg-[var(--glass)] px-4 py-3 shadow-card backdrop-blur-xl">
         <div>
-          <p className="text-[30px] font-black leading-none tracking-tight tabular-nums">
-            {formatScore(result.final)}
-            <span className="ml-1 text-xs font-bold text-muted">/ 10</span>
-          </p>
+          <ScoreBadge score={result.final} size="lg" />
           <p className="mt-1 text-[10px] font-semibold text-muted">
             was {formatScore(review.finalScore)}
           </p>

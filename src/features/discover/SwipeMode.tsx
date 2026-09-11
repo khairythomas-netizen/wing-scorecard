@@ -9,7 +9,7 @@ import { markSwiped, resetSwiped, type SwipeCard } from '../../lib/db/swipe';
 import { formatPrice } from '../../lib/format';
 import { IMAGE_WIDTHS, sized } from '../../lib/images';
 import { formatDistance, lastKnownLocation, requestLocation, type Coords } from '../../lib/location';
-import { formatScore } from '../../lib/scoring';
+import { ScoreBadge } from '../../components/ScoreBadge';
 
 /**
  * Swipe discovery.
@@ -259,19 +259,14 @@ function CardFace({ card }: { card: SwipeCard }) {
           </div>
 
           {card.kind === 'friend' ? (
-            <div className="shrink-0 text-right">
-              <p className="text-3xl font-black leading-none tabular-nums">
-                {formatScore(card.review.finalScore)}
-              </p>
-              <p className="text-[10px] font-bold text-white/70">/ 10</p>
+            <div className="shrink-0">
+              <ScoreBadge score={card.review.finalScore} size="lg" />
             </div>
           ) : (
             card.communityScore != null && (
               <div className="shrink-0 text-right">
-                <p className="text-3xl font-black leading-none tabular-nums">
-                  {formatScore(card.communityScore)}
-                </p>
-                <p className="text-[10px] font-bold text-white/70">community</p>
+                <ScoreBadge score={card.communityScore} size="lg" />
+                <p className="mt-1 text-[10px] font-bold text-white/70">community</p>
               </div>
             )
           )}
