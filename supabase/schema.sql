@@ -511,9 +511,22 @@ end $$;
 create or replace function on_follow_added() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  -- Approving a request inserts here too, so tell the requester they are in.
   perform notify(new.followee_id, new.follower_id, 'follow', null, null);
-  perform notify(new.follower_id, new.followee_id, 'follow_accepted', null, null);
+
+  -- "Accepted your follow request" only makes sense if one was sent. A public
+  -- account is followed directly, and telling that person their request was
+  -- accepted would be a lie about something they never did.
+  -- approve_follow_request inserts the follow before deleting the request, so
+  -- the pending row is still here when this runs.
+  if exists (
+    select 1 from follow_requests
+     where requester_id = new.follower_id
+       and target_id = new.followee_id
+       and status = 'pending'
+  ) then
+    perform notify(new.follower_id, new.followee_id, 'follow_accepted', null, null);
+  end if;
+
   return new;
 end $$;
 
