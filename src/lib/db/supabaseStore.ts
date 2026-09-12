@@ -836,6 +836,22 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
       notify();
     },
 
+    async followHouseAccount() {
+      const uid = me();
+      if (!uid) return;
+      const { data } = await client
+        .from('profiles')
+        .select('id')
+        .eq('username', 'wingman')
+        .maybeSingle();
+      const houseId = (data as { id: string } | null)?.id;
+      if (!houseId || houseId === uid) return;
+      // Ignore the error: already following is the common case, and a failure
+      // here must never block the app from opening.
+      await client.from('follows').insert({ follower_id: uid, followee_id: houseId });
+      notify();
+    },
+
     async listNotifications() {
       const uid = me();
       if (!uid) return [];

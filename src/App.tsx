@@ -6,6 +6,8 @@ import { BrandLockup } from './components/Brand';
 import { BellIcon, GearIcon, MoonIcon, RefreshIcon, SunIcon } from './components/Icons';
 import { Spinner } from './components/States';
 import { AuthScreen } from './features/auth/AuthScreen';
+import { SignInWall } from './features/auth/SignInWall';
+import { endGuest, isGuest, markSeedFollowDone, needsSeedFollow, startGuest } from './lib/guest';
 import { NotificationsScreen } from './features/notifications/NotificationsScreen';
 import { SettingsScreen } from './features/settings/SettingsScreen';
 import { NewPassword } from './features/auth/NewPassword';
@@ -49,10 +51,19 @@ function Gate() {
   const { user, profile, loading, client } = useAuth();
   const { theme } = useTheme();
   const [recovering, setRecovering] = useState(false);
+  const [guest, setGuest] = useState(isGuest);
 
   // Opening a reset link signs the person in, which would otherwise drop them
   // into the feed with the password they could not remember still in force.
   useEffect(() => client.onPasswordRecovery(() => setRecovering(true)), [client]);
+
+  // New accounts get this from a database trigger. This covers everyone who
+  // signed up before that existed, once per person, so unfollowing sticks.
+  useEffect(() => {
+    if (!user?.id || !profile?.username || !needsSeedFollow(user.id)) return;
+    markSeedFollowDone(user.id);
+    void store.followHouseAccount();
+  }, [user?.id, profile?.username]);
 
   if (loading) {
     return (
@@ -62,14 +73,43 @@ function Gate() {
     );
   }
 
-  if (client.requiresSignIn && !user) return <AuthScreen />;
+  // An account is required to write, not to look. The wall sits in front of
+  // posting instead of the front door.
+  if (client.requiresSignIn && !user && !guest) {
+    return (
+      <AuthScreen
+        onBrowse={() => {
+          startGuest();
+          setGuest(true);
+        }}
+      />
+    );
+  }
   if (recovering) return <NewPassword onDone={() => setRecovering(false)} />;
   if (user && profile && !profile.username) return <UsernameScreen />;
 
-  return <Shell theme={theme} />;
+  return (
+    <Shell
+      theme={theme}
+      guest={guest}
+      onLeaveGuest={() => {
+        endGuest();
+        setGuest(false);
+      }}
+    />
+  );
 }
 
-function Shell({ theme }: { theme: 'dark' | 'light' }) {
+function Shell({
+  theme,
+  guest,
+  onLeaveGuest,
+}: {
+  theme: 'dark' | 'light';
+  /** Browsing without an account: reads work, writes ask for one. */
+  guest: boolean;
+  onLeaveGuest: () => void;
+}) {
   const { toggle } = useTheme();
   const { user, profile, client } = useAuth();
   const toast = useToast();
@@ -172,7 +212,7 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
       <header className="app-header fixed left-1/2 top-0 z-40 flex w-full max-w-[600px] -translate-x-1/2 items-center justify-between border-b border-line bg-[var(--glass)] px-4 backdrop-blur-xl">
         <BrandLockup />
         <div className="flex items-center gap-2">
-          {client.requiresSignIn && (
+          {client.requiresSignIn && !guest && (
             <button
               onClick={() => setOverlay(overlay === 'notifications' ? null : 'notifications')}
               aria-label={
@@ -188,7 +228,7 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
               )}
             </button>
           )}
-          {client.requiresSignIn && (
+          {client.requiresSignIn && !guest && (
             <button
               onClick={() => setOverlay(overlay === 'settings' ? null : 'settings')}
               aria-label="Settings"
@@ -257,7 +297,14 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
           />
         ) : (
           <>
-        {tab === 'feed' && (
+        {tab === 'feed' && guest && (
+          <SignInWall
+            title="Your feed lives in your account"
+            detail="Follow people and their wings show up here. Discover and Rankings work without one."
+            onSignIn={onLeaveGuest}
+          />
+        )}
+        {tab === 'feed' && !guest && (
           <FeedScreen
             onOpenProfile={openProfile}
             onFindPeople={() => setPeopleOpen(true)}
@@ -265,9 +312,25 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
           />
         )}
         {tab === 'discover' && <DiscoverScreen theme={theme} />}
-        {tab === 'rate' && <RateScreen onPublished={() => go('feed')} />}
+        {tab === 'rate' &&
+          (guest ? (
+            <SignInWall
+              title="Rating wings needs an account"
+              detail="Your scores, photos and rankings are tied to you, so we need somewhere to keep them. It takes a moment."
+              onSignIn={onLeaveGuest}
+            />
+          ) : (
+            <RateScreen onPublished={() => go('feed')} />
+          ))}
         {tab === 'rankings' && <RankingsScreen />}
-        {tab === 'profile' && profileId && (
+        {tab === 'profile' && guest && (
+          <SignInWall
+            title="No profile without an account"
+            detail="Your posts, followers and rankings all hang off a profile. Create one and it is yours."
+            onSignIn={onLeaveGuest}
+          />
+        )}
+        {tab === 'profile' && !guest && profileId && (
           <ProfileScreen
             key={profileId}
             userId={profileId}
@@ -279,7 +342,7 @@ function Shell({ theme }: { theme: 'dark' | 'light' }) {
             }}
           />
         )}
-        {tab === 'profile' && !profileId && !profile && (
+        {tab === 'profile' && !guest && !profileId && !profile && (
           <Spinner label="Loading profile" />
         )}
           </>

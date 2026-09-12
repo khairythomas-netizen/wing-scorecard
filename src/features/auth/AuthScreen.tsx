@@ -7,7 +7,7 @@ import { ProviderButton } from './ProviderButton';
 type Mode = 'signIn' | 'signUp' | 'forgot';
 
 /** The wall shown when a Supabase project is attached and nobody is signed in. */
-export function AuthScreen() {
+export function AuthScreen({ onBrowse }: { onBrowse?: () => void }) {
   const { client, reload } = useAuth();
   const [mode, setMode] = useState<Mode>('signIn');
   const [email, setEmail] = useState('');
@@ -210,6 +210,15 @@ export function AuthScreen() {
                 : 'Create account'}
         </button>
       </form>
+
+      {onBrowse && mode !== 'forgot' && (
+        <button
+          onClick={onBrowse}
+          className="mt-5 w-full rounded-xl border border-line bg-surface py-3 text-[13px] font-extrabold"
+        >
+          Create account later
+        </button>
+      )}
 
       <button
         onClick={() => {

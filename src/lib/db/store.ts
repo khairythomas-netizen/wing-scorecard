@@ -159,6 +159,11 @@ export interface WingzStore {
   /** Follow, unfollow, request, or withdraw a request, depending on state. */
   toggleFollow(targetId: ID): Promise<FollowState>;
   followingProfiles(): Promise<Profile[]>;
+  /**
+   * Follow the house account, for people who signed up before the database
+   * trigger existed. Quietly does nothing if already following.
+   */
+  followHouseAccount(): Promise<void>;
 
   /** Requests waiting on the current user's approval. */
   incomingFollowRequests(): Promise<PendingFollowRequest[]>;

@@ -684,6 +684,8 @@ export function createLocalStore(): WingzStore {
     },
 
     // Demo mode has one user and nobody to be notified by.
+    async followHouseAccount() {},
+
     async listNotifications() {
       return [];
     },

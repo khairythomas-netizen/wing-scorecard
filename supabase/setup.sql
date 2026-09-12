@@ -620,6 +620,17 @@ begin
     )
   )
   on conflict (id) do nothing;
+
+  -- Everyone starts following the house account, so a brand-new feed has
+  -- something in it instead of being empty on the first screen they see.
+  -- Looked up by username rather than a pasted id, so this survives the
+  -- account being recreated. Unfollowing afterwards sticks: nothing puts it
+  -- back.
+  insert into follows (follower_id, followee_id)
+  select new.id, p.id from profiles p
+   where lower(p.username) = 'wingman' and p.id <> new.id
+  on conflict do nothing;
+
   return new;
 end $$;
 
