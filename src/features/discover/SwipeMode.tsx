@@ -9,6 +9,7 @@ import { markSwiped, resetSwiped, type SwipeCard } from '../../lib/db/swipe';
 import { formatPrice } from '../../lib/format';
 import { IMAGE_WIDTHS, sized } from '../../lib/images';
 import { formatDistance, lastKnownLocation, requestLocation, type Coords } from '../../lib/location';
+import { tap } from '../../lib/nativeShell';
 import { placesProvider } from '../../lib/places';
 import { cachedPhotos, resolvePhotos } from '../../lib/places/photos';
 import { streetPhotos } from '../../lib/places/streetPhotos';
@@ -44,6 +45,8 @@ export function SwipeMode() {
 
   const commit = (dir: 'left' | 'right', card: SwipeCard) => {
     markSwiped(card.id);
+    // A keep is worth feeling; a pass is not.
+    if (dir === 'right') void tap('medium');
     if (dir === 'right') {
       if (!card.wantToTry) {
         const flavourId = card.kind === 'friend' ? card.flavour.id : null;

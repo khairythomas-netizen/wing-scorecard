@@ -1,3 +1,4 @@
+import { syncStatusBar } from '../lib/nativeShell';
 import {
   createContext,
   useCallback,
@@ -51,6 +52,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     } catch {
       /* private mode — the choice just will not persist */
     }
+
+    // In the native shell the status bar is the app's own, so the clock has to
+    // follow the theme or it goes invisible against it.
+    void syncStatusBar(theme);
   }, [theme]);
 
   const toggle = useCallback(() => setTheme((t) => (t === 'dark' ? 'light' : 'dark')), []);

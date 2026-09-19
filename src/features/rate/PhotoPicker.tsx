@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { CameraIcon, CloseIcon } from '../../components/Icons';
+import { pickPhoto } from '../../lib/nativePhoto';
+import { isNative } from '../../lib/platform';
 
 export interface DraftPhoto {
   id: string;
@@ -41,6 +43,20 @@ export function PhotoPicker({
   const main = photos[0];
   const extras = photos.slice(1);
 
+  // Native opens the system picker directly. On the web the hidden input is
+  // still the only way, so the fallback stays.
+  const chooseMain = async () => {
+    const native = await pickPhoto();
+    if (native) onChange(main ? [toDraft(native, 'wing'), ...extras] : [toDraft(native, 'wing')]);
+    else if (!isNative()) mainInput.current?.click();
+  };
+
+  const chooseExtra = async () => {
+    const native = await pickPhoto();
+    if (native) onChange([...photos, toDraft(native, 'wing')]);
+    else if (!isNative()) extraInput.current?.click();
+  };
+
   const setMain = (files: FileList | null) => {
     const file = files?.[0];
     if (!file) return;
@@ -64,7 +80,7 @@ export function PhotoPicker({
     <div>
       <button
         type="button"
-        onClick={() => mainInput.current?.click()}
+        onClick={() => void chooseMain()}
         className="relative grid h-52 w-full place-items-center overflow-hidden rounded-xl2 border border-dashed border-line bg-surface text-center"
       >
         {main ? (
@@ -127,7 +143,7 @@ export function PhotoPicker({
         {photos.length > 0 && photos.length < 9 && (
           <button
             type="button"
-            onClick={() => extraInput.current?.click()}
+            onClick={() => void chooseExtra()}
             className="grid h-20 w-20 shrink-0 place-items-center rounded-xl border border-dashed border-line bg-surface text-2xl text-muted"
             aria-label="Add another photo"
           >

@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isNative } from '../platform';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../supabase/client';
+import { listenForNativeAuthReturn, nativeSignInWithProvider } from './nativeOAuth';
 import type { Profile } from '../types';
 import {
   AuthError,
@@ -47,6 +49,10 @@ export function createSupabaseAuth(client: SupabaseClient): AuthClient {
   const listeners = new Set<() => void>();
 
   const recoveryListeners = new Set<() => void>();
+
+  // In the native shell the browser sheet hands the session back through a
+  // link rather than a page load, so something has to be listening for it.
+  listenForNativeAuthReturn(client);
 
   client.auth.onAuthStateChange((event) => {
     listeners.forEach((l) => l());
@@ -120,6 +126,14 @@ export function createSupabaseAuth(client: SupabaseClient): AuthClient {
     },
 
     async signInWithProvider(provider: OAuthProvider) {
+      if (isNative()) {
+        try {
+          await nativeSignInWithProvider(client, provider);
+        } catch (err) {
+          fail(err instanceof Error ? err.message : String(err));
+        }
+        return;
+      }
       const { error } = await client.auth.signInWithOAuth({
         provider,
         options: { redirectTo: redirectTarget() },

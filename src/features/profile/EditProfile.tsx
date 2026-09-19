@@ -6,6 +6,8 @@ import { IMAGE_WIDTHS, sized } from '../../lib/images';
 import { friendlyAuthError, validateUsername } from '../../lib/auth/types';
 import type { Profile } from '../../lib/types';
 import { AvatarCropper } from './AvatarCropper';
+import { pickPhoto } from '../../lib/nativePhoto';
+import { isNative } from '../../lib/platform';
 
 /**
  * Editing your own profile. The username is handled separately from the rest
@@ -53,6 +55,13 @@ export function EditProfile({ profile, onClose }: { profile: Profile; onClose: (
 
   // Crop first, upload second. Uploading the original and cropping with CSS
   // would mean the avatar looked different everywhere it was shown smaller.
+  // Native gets the system picker, which skips Safari's extra confirm step.
+  const choosePhoto = async () => {
+    const native = await pickPhoto();
+    if (native) setCropping(native);
+    else if (!isNative()) fileInput.current?.click();
+  };
+
   const pickAvatar = async (file: File) => {
     setCropping(null);
     setUploading(true);
@@ -139,7 +148,7 @@ export function EditProfile({ profile, onClose }: { profile: Profile; onClose: (
             </div>
           )}
           <button
-            onClick={() => fileInput.current?.click()}
+            onClick={() => void choosePhoto()}
             disabled={uploading}
             className="mt-2 text-[12px] font-extrabold text-orange disabled:opacity-50"
           >

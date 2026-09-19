@@ -9,6 +9,8 @@
  * unavailable, just less well. Nothing here ever blocks a query.
  */
 
+import { isNative } from './platform';
+
 export interface Coords {
   lat: number;
   lng: number;
@@ -56,6 +58,36 @@ export function requestLocation(): Promise<Coords | null> {
   if (inFlight) return inFlight;
   if (typeof navigator === 'undefined' || !navigator.geolocation) {
     return Promise.resolve(readCache());
+  }
+
+  // The native shell asks the operating system, which gives a real permission
+  // prompt and better accuracy than the web API inside a web view.
+  if (isNative()) {
+    inFlight = (async () => {
+      try {
+        const { Geolocation } = await import('@capacitor/geolocation');
+        const permission = await Geolocation.checkPermissions();
+        if (permission.location !== 'granted') {
+          const asked = await Geolocation.requestPermissions();
+          if (asked.location !== 'granted') return readCache();
+        }
+        const pos = await Geolocation.getCurrentPosition({
+          enableHighAccuracy: false,
+          timeout: 8000,
+          maximumAge: MAX_AGE_MS,
+        });
+        const c = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        memory = c;
+        writeCache(c);
+        return c;
+      } catch {
+        // Refused, or no fix. Whatever we knew last is better than nothing.
+        return readCache();
+      } finally {
+        inFlight = null;
+      }
+    })();
+    return inFlight;
   }
 
   inFlight = new Promise<Coords | null>((resolve) => {
