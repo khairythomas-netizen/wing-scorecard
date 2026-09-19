@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ReportSheet } from '../safety/ReportSheet';
 import { Avatar } from '../../components/Avatar';
 import { HeatMeter } from '../../components/HeatMeter';
 import { BookmarkIcon, CommentIcon, HeartIcon } from '../../components/Icons';
@@ -30,6 +31,8 @@ export function PostCard({
 
   const [index, setIndex] = useState(0);
   const [breakdown, setBreakdown] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const isMine = review.authorId === store.currentUserId();
   const [comments, setComments] = useState(false);
   const [draft, setDraft] = useState('');
   const commentList = useQuery([review.id, comments], async (s) =>
@@ -58,12 +61,21 @@ export function PostCard({
         <span className="shrink-0 text-[10px] font-semibold text-muted">
           {timeAgo(review.createdAt)}
         </span>
-        {onEdit && review.authorId === store.currentUserId() && (
+        {onEdit && isMine && (
           <button
             onClick={() => onEdit(review.id)}
             className="shrink-0 rounded-lg border border-line px-2.5 py-1 text-[10px] font-extrabold text-muted"
           >
             Edit
+          </button>
+        )}
+        {!isMine && (
+          <button
+            onClick={() => setReporting(true)}
+            aria-label={`Report or block @${author.username}`}
+            className="shrink-0 rounded-lg border border-line px-2 py-1 text-[13px] font-black leading-none text-muted"
+          >
+            ⋯
           </button>
         )}
       </header>
@@ -226,6 +238,14 @@ export function PostCard({
           </button>
         </form>
       </Sheet>
+      <ReportSheet
+        open={reporting}
+        onClose={() => setReporting(false)}
+        kind="review"
+        targetId={review.id}
+        authorId={author.id}
+        authorName={author.username}
+      />
     </article>
   );
 }

@@ -686,6 +686,18 @@ export function createLocalStore(): WingzStore {
     // Demo mode has one user and nobody to be notified by.
     async followHouseAccount() {},
 
+    // Demo mode has one user, nobody to block and nothing to report.
+    async blockUser() {},
+    async unblockUser() {},
+    async isBlocked() {
+      return false;
+    },
+    async blockedProfiles() {
+      return [];
+    },
+    async reportContent() {},
+    async deleteMyAccount() {},
+
     async listNotifications() {
       return [];
     },

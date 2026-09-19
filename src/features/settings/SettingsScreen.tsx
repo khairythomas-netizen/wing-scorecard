@@ -5,6 +5,7 @@ import { useQuery, useStore } from '../../hooks/useStore';
 import { useTheme } from '../../hooks/useTheme';
 import { useToast } from '../../hooks/useToast';
 import { DEFAULT_NOTIFICATION_PREFS, type NotificationPrefs } from '../../lib/db/store';
+import { DeleteAccount } from './DeleteAccount';
 
 const NOTIFICATION_ROWS: { key: keyof NotificationPrefs; label: string; detail: string }[] = [
   { key: 'likes', label: 'Likes', detail: 'When someone likes your wings' },
@@ -20,6 +21,8 @@ export function SettingsScreen() {
   const { theme, toggle } = useTheme();
 
   const saved = useQuery([], (s) => s.notificationPrefs());
+  const blocked = useQuery([], (s) => s.blockedProfiles());
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [prefs, setPrefs] = useState<NotificationPrefs | null>(null);
 
   useEffect(() => {
@@ -68,16 +71,58 @@ export function SettingsScreen() {
         </Row>
       </Section>
 
+      <Section title="Blocked accounts">
+        {blocked.data && blocked.data.length > 0 ? (
+          blocked.data.map((p) => (
+            <div
+              key={p.id}
+              className="flex items-center justify-between gap-3 border-b border-line px-4 py-3 last:border-b-0"
+            >
+              <p className="truncate text-[13px] font-bold">@{p.username}</p>
+              <button
+                onClick={() => void store.unblockUser(p.id)}
+                className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-[11px] font-extrabold"
+              >
+                Unblock
+              </button>
+            </div>
+          ))
+        ) : (
+          <p className="px-4 py-3.5 text-[12px] text-muted">You have not blocked anyone.</p>
+        )}
+      </Section>
+
+      <Section title="Contact">
+        <a
+          href="mailto:wingz_app@outlook.com"
+          className="block px-4 py-3.5 text-[13px] font-extrabold text-orange"
+        >
+          wingz_app@outlook.com
+        </a>
+        <p className="px-4 pb-3 text-[11px] leading-relaxed text-muted">
+          Report a problem, ask about your data, or tell us something is wrong. We read
+          everything sent here.
+        </p>
+      </Section>
+
       {client.requiresSignIn && (
         <Section title="Account">
           <button
             onClick={() => void client.signOut()}
-            className="w-full px-4 py-3.5 text-left text-[13px] font-extrabold text-danger"
+            className="w-full border-b border-line px-4 py-3.5 text-left text-[13px] font-extrabold"
           >
             Sign out
           </button>
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="w-full px-4 py-3.5 text-left text-[13px] font-extrabold text-danger"
+          >
+            Delete my account
+          </button>
         </Section>
       )}
+
+      <DeleteAccount open={confirmDelete} onClose={() => setConfirmDelete(false)} />
     </div>
   );
 }

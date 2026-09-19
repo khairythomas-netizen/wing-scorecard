@@ -13,6 +13,17 @@ import type {
   WingFlavour,
 } from '../types';
 
+export type ReportKind = 'review' | 'comment' | 'profile';
+export type ReportReason = 'spam' | 'offensive' | 'harassment' | 'not_wings' | 'other';
+
+export const REPORT_REASONS: { id: ReportReason; label: string }[] = [
+  { id: 'offensive', label: 'Offensive or hateful' },
+  { id: 'harassment', label: 'Harassment or bullying' },
+  { id: 'spam', label: 'Spam or a scam' },
+  { id: 'not_wings', label: 'Nothing to do with wings' },
+  { id: 'other', label: 'Something else' },
+];
+
 export type NotificationKind =
   | 'like'
   | 'comment'
@@ -164,6 +175,19 @@ export interface WingzStore {
    * trigger existed. Quietly does nothing if already following.
    */
   followHouseAccount(): Promise<void>;
+
+  /** Hides the two of you from each other, and severs any following. */
+  blockUser(targetId: ID): Promise<void>;
+  unblockUser(targetId: ID): Promise<void>;
+  isBlocked(targetId: ID): Promise<boolean>;
+  blockedProfiles(): Promise<Profile[]>;
+  /** Files a report for a human to look at. */
+  reportContent(kind: ReportKind, targetId: ID, reason: ReportReason, note: string): Promise<void>;
+  /**
+   * Deletes the signed-in account and everything belonging to it, photos
+   * included. Required by the App Store, and irreversible.
+   */
+  deleteMyAccount(): Promise<void>;
 
   /** Requests waiting on the current user's approval. */
   incomingFollowRequests(): Promise<PendingFollowRequest[]>;

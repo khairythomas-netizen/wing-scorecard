@@ -10,6 +10,7 @@ import { effectiveDistance } from './deckOrder';
 import { placesProvider } from '../places';
 import { filterUnseen, interleave, type SwipeCard } from './swipe';
 import { prepareImage } from '../images';
+import { isAcceptable, MODERATION_MESSAGE } from '../moderation';
 import { normalizeName } from '../places/provider';
 import { calculateScore, round1 } from '../scoring';
 import { PHOTO_BUCKET } from '../supabase/client';
@@ -470,6 +471,11 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
     async createReview(draft) {
       const uid = me();
       if (!uid) throw new Error('Not signed in');
+      // Checked here rather than only in the form, so it holds however the
+      // review was submitted.
+      for (const text of [draft.caption, draft.orderText, draft.flavourName]) {
+        if (!isAcceptable(text)) throw new Error(MODERATION_MESSAGE);
+      }
 
       // The score is recomputed here rather than trusted from the client, so a
       // stored final_score always matches its own components.
@@ -832,7 +838,78 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
     async addComment(reviewId, body) {
       const uid = me();
       if (!uid || !body.trim()) return;
+      if (!isAcceptable(body)) throw new Error(MODERATION_MESSAGE);
       fail('Add comment', (await client.from('comments').insert({ review_id: reviewId, author_id: uid, body: body.trim() })).error);
+      notify();
+    },
+
+    async blockUser(targetId) {
+      const uid = me();
+      if (!uid || uid === targetId) return;
+      fail('Block', (await client.from('blocks').insert({ blocker_id: uid, blocked_id: targetId })).error);
+      notify();
+    },
+
+    async unblockUser(targetId) {
+      const uid = me();
+      if (!uid) return;
+      await client.from('blocks').delete().eq('blocker_id', uid).eq('blocked_id', targetId);
+      notify();
+    },
+
+    async isBlocked(targetId) {
+      const uid = me();
+      if (!uid) return false;
+      const { data } = await client
+        .from('blocks')
+        .select('blocked_id')
+        .eq('blocker_id', uid)
+        .eq('blocked_id', targetId)
+        .maybeSingle();
+      return data != null;
+    },
+
+    async blockedProfiles() {
+      const uid = me();
+      if (!uid) return [];
+      const { data } = await client
+        .from('blocks')
+        .select('blocked:profiles!blocks_blocked_id_fkey(id, username, display_name, bio, avatar_url, is_private)')
+        .eq('blocker_id', uid);
+      return (data ?? [])
+        .map((r) => (r as unknown as { blocked: Record<string, unknown> | null }).blocked)
+        .filter((p): p is Record<string, unknown> => p != null)
+        .map((p) => toProfile(p as never));
+    },
+
+    async reportContent(kind, targetId, reason, note) {
+      const uid = me();
+      if (!uid) throw new Error('Not signed in');
+      fail(
+        'Report',
+        (
+          await client.from('reports').insert({
+            reporter_id: uid,
+            kind,
+            target_id: targetId,
+            reason,
+            note: note.slice(0, 1000),
+          })
+        ).error,
+      );
+    },
+
+    async deleteMyAccount() {
+      const uid = me();
+      if (!uid) return;
+      // Photos first: storage objects are not reachable from SQL, and once the
+      // auth row is gone there is no session left to delete them with.
+      const { data: files } = await client.storage.from(PHOTO_BUCKET).list(uid, { limit: 1000 });
+      if (files?.length) {
+        await client.storage.from(PHOTO_BUCKET).remove(files.map((f) => `${uid}/${f.name}`));
+      }
+      fail('Delete account', (await client.rpc('delete_my_account')).error);
+      await client.auth.signOut();
       notify();
     },
 

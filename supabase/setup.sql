@@ -566,6 +566,133 @@ create trigger follow_requests_notify after insert on follow_requests
 grant execute on function wants_notification(uuid, text) to authenticated;
 
 
+-- ------------------------------------------------ safety and account control
+
+-- Blocking. Deliberately symmetric: a block hides each person from the other,
+-- so blocking someone does not leave you still reading their posts.
+create table if not exists blocks (
+  blocker_id  uuid not null references profiles on delete cascade,
+  blocked_id  uuid not null references profiles on delete cascade,
+  created_at  timestamptz not null default now(),
+  primary key (blocker_id, blocked_id),
+  check (blocker_id <> blocked_id)
+);
+create index if not exists blocks_blocked_idx on blocks (blocked_id);
+
+-- Reports of content or people. Kept even after the offending row is gone, so
+-- there is still a record to answer, which is what "timely responses to
+-- concerns" actually requires.
+create table if not exists reports (
+  id           uuid primary key default gen_random_uuid(),
+  reporter_id  uuid references profiles on delete set null,
+  kind         text not null check (kind in ('review','comment','profile')),
+  target_id    uuid not null,
+  reason       text not null
+                 check (reason in ('spam','offensive','harassment','not_wings','other')),
+  note         text not null default '' check (length(note) <= 1000),
+  status       text not null default 'open' check (status in ('open','actioned','dismissed')),
+  created_at   timestamptz not null default now()
+);
+create index if not exists reports_status_idx on reports (status, created_at desc);
+
+alter table blocks  enable row level security;
+alter table reports enable row level security;
+
+drop policy if exists blocks_read on blocks;
+create policy blocks_read on blocks for select using (blocker_id = auth.uid());
+drop policy if exists blocks_write on blocks;
+create policy blocks_write on blocks for insert with check (blocker_id = auth.uid());
+drop policy if exists blocks_delete on blocks;
+create policy blocks_delete on blocks for delete using (blocker_id = auth.uid());
+
+-- You may file a report and see your own. You may not read anyone else's:
+-- a report list is a map of who is feuding with whom.
+drop policy if exists reports_insert on reports;
+create policy reports_insert on reports for insert with check (reporter_id = auth.uid());
+drop policy if exists reports_read on reports;
+create policy reports_read on reports for select using (reporter_id = auth.uid());
+
+-- Are these two hidden from each other? Checked in both directions from one
+-- place, so a block cannot be half-applied.
+create or replace function blocked_between(a uuid, b uuid)
+returns boolean language sql stable as $$
+  select exists (
+    select 1 from blocks
+     where (blocker_id = a and blocked_id = b)
+        or (blocker_id = b and blocked_id = a)
+  );
+$$;
+
+-- Redefined to respect blocks. Every other read policy is written in terms of
+-- this function, so reviews, scores, photos and comments all inherit it.
+create or replace function can_view_review(review_author uuid, vis text)
+returns boolean language sql stable as $$
+  select
+    review_author = auth.uid()
+    or (
+      not blocked_between(auth.uid(), review_author)
+      and (
+        (
+          vis = 'public'
+          and (
+            not (select is_private from profiles where id = review_author)
+            or exists (
+              select 1 from follows
+               where follower_id = auth.uid() and followee_id = review_author
+            )
+          )
+        )
+        or (
+          vis = 'followers'
+          and exists (
+            select 1 from follows
+             where follower_id = auth.uid() and followee_id = review_author
+          )
+        )
+      )
+    );
+$$;
+
+-- Blocking also severs any following in either direction, so a blocked person
+-- keeps no access they were granted earlier.
+create or replace function on_block_added() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  delete from follows
+   where (follower_id = new.blocker_id and followee_id = new.blocked_id)
+      or (follower_id = new.blocked_id and followee_id = new.blocker_id);
+  delete from follow_requests
+   where (requester_id = new.blocker_id and target_id = new.blocked_id)
+      or (requester_id = new.blocked_id and target_id = new.blocker_id);
+  return new;
+end $$;
+
+drop trigger if exists blocks_sever on blocks;
+create trigger blocks_sever after insert on blocks
+  for each row execute function on_block_added();
+
+-- Deleting your own account, in full.
+--
+-- Required by the App Store: an app that lets you create an account must let
+-- you delete it from inside the app, and disabling is not enough. Removing the
+-- auth row cascades through profiles and everything hanging off it.
+--
+-- Photos in storage are removed by the client before this is called, because
+-- object deletion is not reachable from SQL.
+create or replace function delete_my_account()
+returns void language plpgsql security definer set search_path = public as $$
+declare me uuid := auth.uid();
+begin
+  if me is null then
+    raise exception 'Not signed in';
+  end if;
+  delete from auth.users where id = me;
+end $$;
+
+grant execute on function delete_my_account() to authenticated;
+grant execute on function blocked_between(uuid, uuid) to authenticated, anon;
+
+
 -- =====================================================================
 -- PART 2: auth, storage and write-side RPCs
 -- =====================================================================
