@@ -81,6 +81,13 @@ const REVIEW_SELECT = `
 /** Postgres numerics arrive as strings; never let one reach the score maths. */
 const num = (v: string | number | null | undefined): number => Number(v ?? 0);
 
+/**
+ * `author_id` is a uuid column, so an `in` list has to hold uuids: a filler
+ * like '-' makes PostgREST reject the whole request with a 400 instead of
+ * returning nothing. The nil uuid parses and belongs to no one.
+ */
+export const MATCHES_NOBODY = '00000000-0000-0000-0000-000000000000';
+
 export function toPlace(row: PlaceRow): Place {
   return {
     id: row.id,
@@ -1105,7 +1112,7 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
 
       let query = client.from('reviews').select(REVIEW_SELECT);
       if (filters.scope === 'mine' && uid) query = query.eq('author_id', uid);
-      else if (filters.scope === 'friends') query = query.in('author_id', following.length ? following : ['-']);
+      else if (filters.scope === 'friends') query = query.in('author_id', following.length ? following : [MATCHES_NOBODY]);
       if (filters.authorId) query = query.eq('author_id', filters.authorId);
       if (filters.minHeat != null) query = query.gte('heat', filters.minHeat);
       if (filters.maxHeat != null) query = query.lte('heat', filters.maxHeat);
@@ -1147,10 +1154,10 @@ export function createSupabaseStore(client: SupabaseClient): WingzStore {
       if (filters.flavourId) query = query.eq('flavour_id', filters.flavourId);
       if (filters.owner === 'mine' && uid) query = query.eq('author_id', uid);
       else if (filters.owner === 'friends') {
-        query = query.in('author_id', following.size ? [...following] : ['-']);
+        query = query.in('author_id', following.size ? [...following] : [MATCHES_NOBODY]);
       } else if (filters.owner === 'mine+friends') {
         const ids = [...following, ...(uid ? [uid] : [])];
-        query = query.in('author_id', ids.length ? ids : ['-']);
+        query = query.in('author_id', ids.length ? ids : [MATCHES_NOBODY]);
       }
 
       const { data } = await query.limit(500);

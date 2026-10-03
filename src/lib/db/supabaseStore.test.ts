@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toPlace, toReview, type PlaceRow, type ReviewRow } from './supabaseStore';
+import { MATCHES_NOBODY, toPlace, toReview, type PlaceRow, type ReviewRow } from './supabaseStore';
 import { friendlyAuthError, validateUsername } from '../auth/types';
 import { toProfile } from '../auth/supabaseAuth';
 
@@ -319,4 +319,15 @@ describe('manual places', () => {
     expect(await mockPlacesProvider.geocodeAddress('x')).toBeNull();
   });
 
+});
+
+describe('empty author filters', () => {
+  /**
+   * A "friends" filter with nothing followed still has to send an `in` list.
+   * It used to send '-', which PostgREST rejected as a bad uuid, so the whole
+   * map or rankings request came back 400 instead of simply empty.
+   */
+  it('uses a real uuid as the matches-nobody filler', () => {
+    expect(MATCHES_NOBODY).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+  });
 });
